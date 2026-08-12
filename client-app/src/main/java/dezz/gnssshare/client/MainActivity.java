@@ -204,7 +204,9 @@ public class MainActivity extends AppCompatActivity {
         autostartDiagText = findViewById(R.id.autostartDiagText);
 
         TextView versionText = findViewById(R.id.versionText);
-        versionText.setText(String.format(getString(R.string.version_label), appVersion));
+        String buildLabel = getString(R.string.build_label);
+        String shownVersion = buildLabel.isEmpty() ? appVersion : buildLabel;
+        versionText.setText(String.format(getString(R.string.version_label), shownVersion));
 
         // Initialize with default values
         updateConnectionStatus(GNSSClientService.getConnectionState(), GNSSClientService.getServerAddress());

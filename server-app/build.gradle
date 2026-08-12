@@ -28,6 +28,8 @@ android {
         targetSdkVersion 36
         versionCode rootProject.ext.appVersionCode
         versionName rootProject.ext.appVersionName
+        // Optional build label (branch-shortsha) for debug/CI builds; empty for tagged releases.
+        resValue "string", "build_label", (System.getenv("BUILD_LABEL") ?: "")
     }
 
     compileOptions {
