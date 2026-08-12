@@ -175,11 +175,20 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             return;
         }
 
+        DatagramSocket sock;
         try {
-            udpSocket = new DatagramSocket();
+            sock = new DatagramSocket();
         } catch (IOException e) {
             Log.e(TAG, "Failed to open UDP socket", e);
             running.set(false);   // allow a later onAvailable() to retry
+            return;
+        }
+        udpSocket = sock;
+        if (!running.get()) {
+            // stopTransport() raced in during socket open — close and bail
+            Log.i(TAG, "Transport stopped during socket open; closing");
+            sock.close();
+            udpSocket = null;
             return;
         }
 
