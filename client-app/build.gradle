@@ -19,12 +19,12 @@ apply plugin: 'com.android.application'
 apply plugin: 'com.google.protobuf'
 
 android {
-    namespace "dezz.gnssshare.client"
+    namespace "goodvin.locsync.client"
 
     compileSdkVersion 36
 
     defaultConfig {
-        applicationId "dezz.locsync.client"
+        applicationId "goodvin.locsync.client"
         minSdk 28
         targetSdkVersion 36
         versionCode rootProject.ext.appVersionCode

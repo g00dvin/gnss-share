@@ -15,30 +15,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-plugins {
-    id 'com.android.library'
-}
+package goodvin.locsync.shared;
 
-android {
-    namespace 'goodvin.locsync.logexporter'
+import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.util.Log;
 
-    compileSdkVersion 36
+public class VersionGetter {
+    private static final String TAG = "VersionGetter";
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
+    public static String getAppVersionName(Context context) {
+        try {
+            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return pInfo.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Error getting app version name", e);
+            return "<unknown>";
         }
     }
-    lint {
-        targetSdk 36
-    }
-}
-
-dependencies {
-    testImplementation 'junit:junit:4.13.2'
 }
