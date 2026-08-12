@@ -68,7 +68,7 @@
     <string name="instructions_title">Setup Instructions</string>
     <string name="instructions_toggle">Toggle instructions</string>
     <string name="technical_details_title">Connection Details</string>
-    <string name="technical_details">• Available network interfaces for client connections (enable Wi-Fi hotspot to see its IP-address):\n%s• Server port: 8887 (TCP)</string>
+    <string name="technical_details">• Available network interfaces for client connections (enable Wi-Fi hotspot to see its IP-address):\n%s• Server port: 8887 (UDP)</string>
     <string name="interface_hotspot">Wi-Fi Hotspot</string>
     <string name="interface_wifi" translatable="false">Wi-Fi</string>
     <string name="interface_none">none</string>
