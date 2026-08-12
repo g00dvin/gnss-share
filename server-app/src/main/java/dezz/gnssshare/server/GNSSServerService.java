@@ -326,7 +326,7 @@ public class GNSSServerService extends Service {
 
             lastServerResponse.setStatus(LocationProto.Status.AWAITING_LOCATION);
 
-            final int MIN_INTERVAL_MS = 500;
+            final int MIN_INTERVAL_MS = 200;
             final int MIN_DISTANCE_M = 0;
             if (fusedLocationProviderClient != null) {
                 LocationRequest request = new LocationRequest.Builder(MIN_INTERVAL_MS)
@@ -406,6 +406,12 @@ public class GNSSServerService extends Service {
         }
         if (location.hasSpeed()) {
             builder.setSpeed(location.getSpeed());
+        }
+        if (location.hasSpeedAccuracy()) {
+            builder.setSpeedAccuracy(location.getSpeedAccuracyMetersPerSecond());
+        }
+        if (location.hasBearingAccuracy()) {
+            builder.setBearingAccuracy(location.getBearingAccuracyDegrees());
         }
 
         lastServerResponse.setStatus(LocationProto.Status.TRANSMITTING_LOCATION)
