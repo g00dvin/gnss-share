@@ -21,7 +21,7 @@
 
     <string name="notification_title">%s работает</string>
     <string name="notification_failed_title">%s ошибка запуска</string>
-    <string name="notification_clients">Подключений: %d</string>
+    <string name="notification_clients_single">Клиент подключён</string>
     <string name="notification_no_clients">Нет подключенных клиентов</string>
     <string name="notification_satellites">Спутников: %d</string>
     <string name="notification_gnss_inactive">Передача местоположений не активна</string>

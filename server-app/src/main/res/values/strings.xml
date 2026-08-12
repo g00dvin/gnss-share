@@ -21,7 +21,7 @@
 
     <string name="notification_title">%s Running</string>
     <string name="notification_failed_title">%s Failed to Run</string>
-    <string name="notification_clients">Clients: %d</string>
+    <string name="notification_clients_single">Client connected</string>
     <string name="notification_no_clients">No clients connected</string>
     <string name="notification_satellites">Satellites: %d</string>
     <string name="notification_gnss_inactive">GNSS is not active</string>

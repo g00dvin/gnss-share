@@ -32,7 +32,9 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -40,13 +42,15 @@ import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.Socket;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import dezz.gnssshare.proto.LocationProto;
+import dezz.gnssshare.shared.Protocol;
 
 public class GNSSClientService extends Service implements ConnectionManager.ConnectionListener {
     private static final String TAG = "GNSSClientService";
@@ -59,13 +63,19 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private MockLocationManager mockLocationManager;
     private NotificationManager notificationManager;
     private final ExecutorService executor = Executors.newCachedThreadPool();
-    private final AtomicBoolean isReceivingUpdates = new AtomicBoolean(false);
 
-    private Socket currentSocket;
     private Location lastReceivedLocation;
     private static long lastUpdateTime;
     private long lastLocationTimestamp = 0;
     private int lastBroadcastSatelliteCount = -1;
+    private final AtomicBoolean running = new AtomicBoolean(false);
+    private volatile long lastResponseTime = 0;
+
+    private volatile DatagramSocket udpSocket;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final long HELLO_INTERVAL_MS = 1000;
+    private static final long CONNECTED_TIMEOUT_MS = 3000;
+    private final Runnable helloTick = this::sendHelloTick;
 
     private static final String WIDGET_SATELLITE_STATUS_ACTION = "dezz.gnssshare.action.SATELLITE_STATUS";
     private static final String WIDGET_PACKAGE = "dezz.status.widget";
@@ -89,12 +99,12 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private final ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() {
         @Override
         public void onAvailable(@NonNull Network network) {
-            connectionManager.onNetworkAvailable();
+            startTransport();
         }
 
         @Override
         public void onLost(@NonNull Network network) {
-            connectionManager.onNetworkLost();
+            stopTransport("WiFi disconnected");
         }
     };
 
@@ -139,9 +149,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         super.onDestroy();
 
-        if (connectionManager != null) {
-            connectionManager.shutdown();
-        }
+        stopTransport("Service destroyed");
         executor.shutdown();
     }
 
@@ -162,133 +170,167 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
                 .putExtra("serverAddress", serverAddress));
     }
 
-    @Override
-    public void onConnectionEstablished(Socket socket, String serverAddress) {
-        Log.i(TAG, "Connection established, starting location updates");
-
-        this.currentSocket = socket;
-        startReceivingLocationUpdates(serverAddress);
-    }
-
-    @Override
-    public void onDisconnected() {
-        Log.i(TAG, "Connection lost, stopping location updates");
-
-        this.currentSocket = null;
-        lastLocationTimestamp = 0;
-        lastBroadcastSatelliteCount = -1;
-        broadcastSatelliteStatusToWidget(0);
-
-        stopReceivingLocationUpdates();
-
-        // Notify activity about disconnection
-        sendBroadcast(new Intent("dezz.gnssshare.CONNECTION_CHANGED")
-                .putExtra("state", ConnectionManager.ConnectionState.DISCONNECTED.toString()));
-    }
-
-    private void startReceivingLocationUpdates(String serverAddress) {
-        if (isReceivingUpdates.get() || currentSocket == null) {
+    private void startTransport() {
+        if (running.getAndSet(true)) {
             return;
         }
 
-        isReceivingUpdates.set(true);
+        DatagramSocket sock;
+        try {
+            sock = new DatagramSocket();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to open UDP socket", e);
+            running.set(false);   // allow a later onAvailable() to retry
+            return;
+        }
+        udpSocket = sock;
+        if (!running.get()) {
+            // stopTransport() raced in during socket open — close and bail
+            Log.i(TAG, "Transport stopped during socket open; closing");
+            sock.close();
+            udpSocket = null;
+            return;
+        }
+
+        String server = connectionManager.resolveServerAddress();
+        connectionManager.setState(ConnectionManager.ConnectionState.CONNECTING, "Connecting to server...", server);
 
         if (!MockLocationManager.isMockLocationEnabled(getContentResolver())) {
             Log.w(TAG, "Mock locations not enabled - please enable in Developer Options");
             broadcastMockLocationStatus(getString(R.string.mock_location_enable_message), true);
         }
-
         try {
             mockLocationManager.startMockLocationProvider();
         } catch (SecurityException e) {
-            Log.e(TAG, "Security exception - mock location permission denied", e);
             broadcastMockLocationStatus(getString(R.string.mock_location_permission_denied), true);
         } catch (Exception e) {
-            Log.e(TAG, "Error setting up mock location provider", e);
             broadcastMockLocationStatus(String.format(getString(R.string.mock_location_setup_failed), e.getMessage()), true);
         }
 
-        executor.execute(() -> {
-            try {
-                InputStream inputStream = currentSocket.getInputStream();
-
-                while (isReceivingUpdates.get() && !currentSocket.isClosed()) {
-                    try {
-                        // Read message length (4 bytes)
-                        byte[] lengthBytes = new byte[4];
-                        int bytesRead = 0;
-                        while (bytesRead < 4) {
-                            int read = inputStream.read(lengthBytes, bytesRead, 4 - bytesRead);
-                            if (read == -1) {
-                                throw new IOException("Connection closed by server");
-                            }
-                            bytesRead += read;
-                        }
-
-                        int messageLength = bytesToInt(lengthBytes);
-
-                        // Read message data
-                        byte[] messageData = new byte[messageLength];
-                        bytesRead = 0;
-                        while (bytesRead < messageLength) {
-                            int read = inputStream.read(messageData, bytesRead, messageLength - bytesRead);
-                            if (read == -1) {
-                                throw new IOException("Connection closed by server");
-                            }
-                            bytesRead += read;
-                        }
-
-                        // Parse protobuf message
-                        LocationProto.ServerResponse response =
-                                LocationProto.ServerResponse.parseFrom(messageData);
-
-                        if (!connectionManager.isConnected()) {
-                            connectionManager.setState(ConnectionManager.ConnectionState.CONNECTED, "Received first server response", serverAddress);
-                        }
-
-                        if (response.hasLocationUpdate()) {
-                            handleLocationUpdate(response);
-                        } else {
-                            Log.i(TAG, "Server status: " + response.getStatus());
-                            // Broadcast satellite info to activity
-                            Intent intent = new Intent("dezz.gnssshare.LOCATION_UPDATE");
-                            intent.putExtra("satellites", response.getSatellites());
-                            sendBroadcast(intent);
-                        }
-                        broadcastSatelliteStatusToWidget(response.getSatellites());
-                    } catch (IOException e) {
-                        if (currentSocket != null && !currentSocket.isClosed() && !currentSocket.isInputShutdown() && !currentSocket.isOutputShutdown()) {
-                            Log.e(TAG, "Error receiving location update", e);
-                        }
-                        // Let ConnectionManager handle the reconnection
-                        break;
-                    }
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Error in location update receiver", e);
-            }
-
-            connectionManager.disconnect("Connection lost - attempting to reconnect...");
-            connectionManager.scheduleReconnect();
-        });
+        executor.execute(this::receiveLoop);
+        mainHandler.post(helloTick);
     }
 
-    private void stopReceivingLocationUpdates() {
-        isReceivingUpdates.set(false);
+    private void stopTransport(String reason) {
+        if (!running.getAndSet(false)) {
+            return;
+        }
+        Log.i(TAG, "Stopping transport: " + reason);
+        mainHandler.removeCallbacks(helloTick);
+        if (udpSocket != null) {
+            udpSocket.close();
+            udpSocket = null;
+        }
+        lastLocationTimestamp = 0;
+        lastBroadcastSatelliteCount = -1;
+        broadcastSatelliteStatusToWidget(0);
 
-        // Stop providing mock locations
         if (instance == null) {
             mockLocationManager.shutdown();
         } else {
             mockLocationManager.stopMockLocationProvider(5000);
         }
+
+        connectionManager.setState(ConnectionManager.ConnectionState.DISCONNECTED, reason, null);
+        sendBroadcast(new Intent("dezz.gnssshare.CONNECTION_CHANGED")
+                .putExtra("state", ConnectionManager.ConnectionState.DISCONNECTED.toString()));
     }
 
-    private int bytesToInt(byte[] bytes) {
-        return ((bytes[0] & 0xFF) << 24) |
-                ((bytes[1] & 0xFF) << 16) |
-                ((bytes[2] & 0xFF) << 8) |
-                (bytes[3] & 0xFF);
+    private void sendHelloTick() {
+        if (!running.get()) {
+            return;
+        }
+        String server = connectionManager.getServerAddress();
+        if (server == null) {
+            server = connectionManager.resolveServerAddress();
+        }
+        final DatagramSocket sock = udpSocket;
+        if (server != null && sock != null) {
+            final String dest = server;
+            executor.execute(() -> {
+                try {
+                    byte[] hello = Protocol.buildPacket(Protocol.TYPE_HELLO, null);
+                    sock.send(new DatagramPacket(hello, hello.length,
+                            InetAddress.getByName(dest), Protocol.PORT));
+                } catch (IOException e) {
+                    Log.w(TAG, "Failed to send HELLO", e);
+                }
+            });
+        }
+        // Recency check: drop to CONNECTING if no RESPONSE within the window.
+        if (connectionManager.isConnected()
+                && System.currentTimeMillis() - lastResponseTime > CONNECTED_TIMEOUT_MS) {
+            connectionManager.setState(ConnectionManager.ConnectionState.CONNECTING,
+                    "Waiting for server...", connectionManager.getServerAddress());
+        }
+        mainHandler.postDelayed(helloTick, HELLO_INTERVAL_MS);
+    }
+
+    private void receiveLoop() {
+        DatagramSocket sock = udpSocket;
+        if (sock == null) {
+            return;
+        }
+        byte[] buffer = new byte[Protocol.MAX_PACKET_BYTES];
+        while (running.get() && !sock.isClosed()) {
+            try {
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                sock.receive(packet);
+                handlePacket(packet);
+            } catch (IOException e) {
+                if (running.get() && !sock.isClosed()) {
+                    Log.v(TAG, "UDP receive error: " + e.getMessage());
+                    try {
+                        Thread.sleep(200);   // avoid hot-spin on repeated errors
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void handlePacket(DatagramPacket packet) {
+        Protocol.Header header;
+        try {
+            header = Protocol.parse(packet.getData(), packet.getLength());
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+
+        if (header.type == Protocol.TYPE_VERSION_MISMATCH
+                || !Protocol.isSupportedVersion(header.version)) {
+            broadcastMockLocationStatus(getString(R.string.version_mismatch), true);
+            return;
+        }
+        if (header.type != Protocol.TYPE_RESPONSE) {
+            return;
+        }
+
+        try {
+            LocationProto.ServerResponse response = LocationProto.ServerResponse.parseFrom(
+                    java.util.Arrays.copyOfRange(packet.getData(),
+                            header.payloadOffset, header.payloadOffset + header.payloadLength));
+
+            lastResponseTime = System.currentTimeMillis();
+            if (!connectionManager.isConnected()) {
+                connectionManager.setState(ConnectionManager.ConnectionState.CONNECTED,
+                        "Receiving from server", connectionManager.getServerAddress());
+            }
+
+            if (response.hasLocationUpdate()) {
+                handleLocationUpdate(response);
+            } else {
+                Log.i(TAG, "Server status: " + response.getStatus());
+                Intent intent = new Intent("dezz.gnssshare.LOCATION_UPDATE");
+                intent.putExtra("satellites", response.getSatellites());
+                sendBroadcast(intent);
+            }
+            broadcastSatelliteStatusToWidget(response.getSatellites());
+        } catch (IOException e) {
+            Log.w(TAG, "Failed to parse ServerResponse", e);
+        }
     }
 
     private void handleLocationUpdate(LocationProto.ServerResponse response) {
