@@ -19,6 +19,7 @@ package dezz.gnssshare.client;
 
 import androidx.annotation.NonNull;
 
+import android.app.AppOpsManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.location.Location;
@@ -96,6 +97,27 @@ public class MockLocationManager {
             return android.provider.Settings.Secure.getString(contentResolver, "mock_location") != null;
         } catch (Exception e) {
             Log.e(TAG, "Error checking mock location setting", e);
+            return false;
+        }
+    }
+
+    /**
+     * Returns true only if THIS app is the one selected as the mock-location app in Developer
+     * Options (i.e. it is actually allowed to inject mock locations). Uses the app-op, which is
+     * the authoritative signal — unlike the legacy {@code mock_location} setting.
+     */
+    @SuppressWarnings("deprecation")
+    public static boolean isSelectedMockApp(Context context) {
+        AppOpsManager appOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+        if (appOps == null) {
+            return false;
+        }
+        try {
+            int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_MOCK_LOCATION,
+                    android.os.Process.myUid(), context.getPackageName());
+            return mode == AppOpsManager.MODE_ALLOWED;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking mock location app op", e);
             return false;
         }
     }

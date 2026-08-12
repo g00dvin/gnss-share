@@ -183,6 +183,13 @@ public class MainActivity extends AppCompatActivity {
         uiHandler.removeCallbacksAndMessages(null);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Re-check on every return to the app whether we're the selected mock-location app.
+        updatePermissionsStatus();
+    }
+
     private void initializeViews() {
         statusText = findViewById(R.id.statusText);
         connectionText = findViewById(R.id.connectionText);
@@ -196,6 +203,13 @@ public class MainActivity extends AppCompatActivity {
         requestPermissionsButton = findViewById(R.id.requestPermissionsButton);
         permissionsStatusText = findViewById(R.id.permissionsStatusText);
         mockLocationStatusText = findViewById(R.id.mockLocationStatusText);
+        mockLocationStatusText.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+            } catch (Exception e) {
+                Log.w(TAG, "Cannot open developer settings", e);
+            }
+        });
         serverIpEditLabel = findViewById(R.id.serverIpEditLabel);
         serverIpEdit = findViewById(R.id.serverIpEdit);
         startServiceButton = findViewById(R.id.startServiceButton);
@@ -244,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
         // Set up service control button click listeners
         startServiceButton.setOnClickListener(v -> startGNSSService());
         stopServiceButton.setOnClickListener(v -> stopGNSSService());
-        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("gnss-client"));
+        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("locsync-client"));
 
         // Static jitter checkbox
         CheckBox staticJitterCheckbox = findViewById(R.id.staticJitterCheckbox);
@@ -422,18 +436,18 @@ public class MainActivity extends AppCompatActivity {
             requestPermissionsButton.setVisibility(View.VISIBLE);
         }
 
-        boolean mockLocationEnabled = MockLocationManager.isMockLocationEnabled(getContentResolver());
+        boolean mockAppSelected = MockLocationManager.isSelectedMockApp(this);
 
-        if (mockLocationEnabled && !mockLocationError) {
+        if (mockAppSelected && !mockLocationError) {
             mockLocationStatusText.setVisibility(View.GONE);
         } else {
-            if (mockLocationError) {
-                mockLocationStatusText.setText(mockLocationsErrorMessage);
-            }
+            mockLocationStatusText.setText(mockLocationError
+                    ? mockLocationsErrorMessage
+                    : getString(R.string.mock_app_not_selected));
             mockLocationStatusText.setVisibility(View.VISIBLE);
         }
 
-        if (allPermissionsGranted && mockLocationEnabled && !mockLocationError) {
+        if (allPermissionsGranted && mockAppSelected && !mockLocationError) {
             permissionsSection.setVisibility(View.GONE);
         } else {
             permissionsSection.setVisibility(View.VISIBLE);

@@ -229,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
         requestPermissionsButton.setOnClickListener(v -> requestPermissions());
         startServiceButton.setOnClickListener(v -> startGNSSService());
         stopServiceButton.setOnClickListener(v -> stopGNSSService());
-        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("gnss-server"));
+        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("locsync-server"));
 
         // Bluetooth settings listeners
         bluetoothAutoStartSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
