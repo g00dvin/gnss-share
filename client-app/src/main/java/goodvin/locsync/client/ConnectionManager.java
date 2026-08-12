@@ -19,6 +19,7 @@ package goodvin.locsync.client;
 
 import android.content.Context;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import java.util.Objects;
 
@@ -85,7 +86,7 @@ public class ConnectionManager {
 
     public void setState(ConnectionState newState, String message, String serverAddress) {
         if (currentState != newState || !Objects.equals(this.serverAddress, serverAddress)) {
-            Log.d(TAG, "State change: " + currentState + " -> " + newState + " (" + message + ")");
+            AppLog.d(TAG, "State change: " + currentState + " -> " + newState + " (" + message + ")");
             currentState = newState;
             this.serverAddress = serverAddress;
             listener.onConnectionStateChanged(newState, message, serverAddress);

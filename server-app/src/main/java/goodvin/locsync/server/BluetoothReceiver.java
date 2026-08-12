@@ -22,6 +22,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import androidx.core.content.ContextCompat;
 import androidx.core.content.IntentCompat;
@@ -54,17 +55,17 @@ public class BluetoothReceiver extends BroadcastReceiver {
         }
 
         String action = intent.getAction();
-        Log.d(TAG, "Received Bluetooth action: " + action);
+        AppLog.d(TAG, "Received Bluetooth action: " + action);
 
         // Check if Bluetooth auto-start feature is enabled
         if (!Preferences.bluetoothAutoStartEnabled(context)) {
-            Log.d(TAG, "Bluetooth auto-start is disabled, ignoring event");
+            AppLog.d(TAG, "Bluetooth auto-start is disabled, ignoring event");
             return;
         }
 
         // Check if any trigger devices are configured
         if (!Preferences.hasBluetoothTriggerDevices(context)) {
-            Log.d(TAG, "No trigger devices configured, ignoring event");
+            AppLog.d(TAG, "No trigger devices configured, ignoring event");
             return;
         }
 
@@ -76,11 +77,11 @@ public class BluetoothReceiver extends BroadcastReceiver {
 
         String deviceMac = device.getAddress();
         String deviceName = device.getName();
-        Log.d(TAG, "Device: " + deviceName + " (" + deviceMac + ")");
+        AppLog.d(TAG, "Device: " + deviceName + " (" + deviceMac + ")");
 
         // Check if this is one of the trigger devices
         if (!Preferences.isBluetoothTriggerDevice(context, deviceMac)) {
-            Log.d(TAG, "Not a trigger device, ignoring");
+            AppLog.d(TAG, "Not a trigger device, ignoring");
             return;
         }
 
@@ -94,12 +95,12 @@ public class BluetoothReceiver extends BroadcastReceiver {
                 break;
 
             default:
-                Log.d(TAG, "Unhandled action: " + action);
+                AppLog.d(TAG, "Unhandled action: " + action);
         }
     }
 
     private void handleDeviceConnected(Context context, String deviceMac, String deviceName) {
-        Log.i(TAG, "Trigger device connected: " + deviceName + " (" + deviceMac + ")");
+        AppLog.i(TAG, "Trigger device connected: " + deviceName + " (" + deviceMac + ")");
         connectedTriggerDevices.add(deviceMac);
 
         if (GNSSServerService.isServiceRunning()) {
@@ -107,7 +108,7 @@ public class BluetoothReceiver extends BroadcastReceiver {
             GNSSServerService.cancelBluetoothAutoStopRequest();
         } else {
             // Start the service
-            Log.i(TAG, "Starting GNSS service due to Bluetooth connection");
+            AppLog.i(TAG, "Starting GNSS service due to Bluetooth connection");
             GNSSServerService.setServiceEnabled(context, true);
             Intent serviceIntent = new Intent(context, GNSSServerService.class);
             ContextCompat.startForegroundService(context, serviceIntent);
@@ -115,11 +116,11 @@ public class BluetoothReceiver extends BroadcastReceiver {
     }
 
     private void handleDeviceDisconnected(Context context, String deviceMac, String deviceName) {
-        Log.i(TAG, "Trigger device disconnected: " + deviceName + " (" + deviceMac + ")");
+        AppLog.i(TAG, "Trigger device disconnected: " + deviceName + " (" + deviceMac + ")");
         connectedTriggerDevices.remove(deviceMac);
 
         if (!connectedTriggerDevices.isEmpty()) {
-            Log.d(TAG, "Other trigger devices still connected: " + connectedTriggerDevices.size() + ", not stopping");
+            AppLog.d(TAG, "Other trigger devices still connected: " + connectedTriggerDevices.size() + ", not stopping");
             return;
         }
 

@@ -22,6 +22,7 @@ import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 /**
  * Schedules/cancels the persisted network job that auto-starts the client on WiFi connect.
@@ -71,7 +72,7 @@ public final class AutostartScheduler {
             builder.setMinimumLatency(minLatencyMs);
         }
         int result = scheduler.schedule(builder.build());
-        Log.d(TAG, "Scheduled autostart job (latency=" + minLatencyMs + "ms): "
+        AppLog.d(TAG, "Scheduled autostart job (latency=" + minLatencyMs + "ms): "
                 + (result == JobScheduler.RESULT_SUCCESS ? "ok" : "failed"));
     }
 
@@ -79,7 +80,7 @@ public final class AutostartScheduler {
         JobScheduler scheduler = context.getSystemService(JobScheduler.class);
         if (scheduler != null) {
             scheduler.cancel(JOB_ID);
-            Log.d(TAG, "Cancelled autostart job");
+            AppLog.d(TAG, "Cancelled autostart job");
         }
     }
 }

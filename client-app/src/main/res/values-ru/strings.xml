@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync клиент</string>
+    <string name="debug_logging">Подробное логирование</string>
     <string name="version_label">Версия %s</string>
     <string name="mock_app_not_selected">⚠ Приложение не выбрано для фиктивного местоположения. Нажмите здесь → «Для разработчиков» → «Выбрать приложение для фиктивных местоположений» → LocSync клиент.</string>
     <string name="connection_status_title">Статус подключения</string>

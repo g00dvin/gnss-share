@@ -28,6 +28,7 @@ import android.location.provider.ProviderProperties;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import java.util.Random;
 
@@ -54,7 +55,7 @@ public class MockLocationManager {
     }
 
     public void startMockLocationProvider() {
-        Log.d(TAG, "Starting mock location provider");
+        AppLog.d(TAG, "Starting mock location provider");
 
         mainHandler.removeCallbacks(this.disableMockLocationProvider);
         setupMockLocationProvider();
@@ -62,7 +63,7 @@ public class MockLocationManager {
     }
 
     public void stopMockLocationProvider(long delayMillis) {
-        Log.d(TAG, "Scheduling stopping of mock location provider in " + delayMillis + " ms");
+        AppLog.d(TAG, "Scheduling stopping of mock location provider in " + delayMillis + " ms");
 
         mainHandler.removeCallbacks(this.disableMockLocationProvider);
         mainHandler.postDelayed(this.disableMockLocationProvider, delayMillis);
@@ -123,7 +124,7 @@ public class MockLocationManager {
     }
 
     public synchronized void shutdown() {
-        Log.d(TAG, "Shutdown");
+        AppLog.d(TAG, "Shutdown");
 
         if (!isMockLocationProviderSetup) {
             return;
@@ -149,7 +150,7 @@ public class MockLocationManager {
             locationManager.removeTestProvider(LocationManager.GPS_PROVIDER);
         } catch (IllegalArgumentException e) {
             // Provider doesn't exist, which is fine
-            Log.d(TAG, "GPS test provider doesn't exist, creating new one");
+            AppLog.d(TAG, "GPS test provider doesn't exist, creating new one");
         }
 
         // Add test provider with correct parameters
@@ -168,16 +169,16 @@ public class MockLocationManager {
 
         isMockLocationProviderSetup = true;
 
-        Log.i(TAG, "Mock location provider setup successfully");
+        AppLog.i(TAG, "Mock location provider setup successfully");
     }
 
     private void enableMockLocationProvider() {
         locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true);
-        Log.d(TAG, "Mock location provider enabled");
+        AppLog.d(TAG, "Mock location provider enabled");
     }
 
     private void disableMockLocationProvider() {
         locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false);
-        Log.d(TAG, "Mock location provider disabled");
+        AppLog.d(TAG, "Mock location provider disabled");
     }
 }

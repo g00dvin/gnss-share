@@ -21,6 +21,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import androidx.core.content.ContextCompat;
 
@@ -36,7 +37,7 @@ public class BroadcastsReceiver extends BroadcastReceiver {
             return;
         }
 
-        Log.d(TAG, "Received broadcast: " + intent.getAction());
+        AppLog.d(TAG, "Received broadcast: " + intent.getAction());
         Context appContext = context.getApplicationContext();
 
         switch (intent.getAction()) {
@@ -45,7 +46,7 @@ public class BroadcastsReceiver extends BroadcastReceiver {
                     return;
                 }
 
-                Log.i(TAG, "Starting GNSS server service");
+                AppLog.i(TAG, "Starting GNSS server service");
                 GNSSServerService.setServiceEnabled(appContext, true);
                 startService(appContext);
                 break;
@@ -55,25 +56,25 @@ public class BroadcastsReceiver extends BroadcastReceiver {
                     return;
                 }
 
-                Log.i(TAG, "Stopping GNSS server service");
+                AppLog.i(TAG, "Stopping GNSS server service");
                 GNSSServerService.setServiceEnabled(appContext, false);
                 stopService(appContext);
                 break;
 
             case Intent.ACTION_BOOT_COMPLETED:
-                Log.d(TAG, "Device boot completed, checking if GNSS server should auto-start");
+                AppLog.d(TAG, "Device boot completed, checking if GNSS server should auto-start");
 
                 // Check if the service was previously enabled
                 if (GNSSServerService.isServiceEnabled(appContext)) {
                     if (GNSSServerService.isServiceRunning()) {
-                        Log.i(TAG, "GNSS server service is already running. Don't start it again.");
+                        AppLog.i(TAG, "GNSS server service is already running. Don't start it again.");
                         return;
                     }
 
-                    Log.i(TAG, "Auto-starting GNSS server service");
+                    AppLog.i(TAG, "Auto-starting GNSS server service");
                     startService(appContext);
                 } else {
-                    Log.d(TAG, "GNSS server service not enabled for auto-start");
+                    AppLog.d(TAG, "GNSS server service not enabled for auto-start");
                 }
                 break;
 

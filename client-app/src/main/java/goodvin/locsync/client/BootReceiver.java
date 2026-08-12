@@ -21,6 +21,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "GNSSClientBootReceiver";
@@ -32,7 +33,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())
                 || ACTION_QUICKBOOT_POWERON.equals(intent.getAction())) {
-            Log.d(TAG, "Device boot completed, checking if GNSS client should auto-start");
+            AppLog.d(TAG, "Device boot completed, checking if GNSS client should auto-start");
 
             // Boot does not gate on WiFi, so pass wifiConnected=true.
             AutostartPolicy.Decision decision = AutostartPolicy.decide(
@@ -43,11 +44,11 @@ public class BootReceiver extends BroadcastReceiver {
             Preferences.setLastAutostart(context, "boot", decision.name());
 
             if (decision == AutostartPolicy.Decision.START) {
-                Log.i(TAG, "Auto-starting GNSS client service");
+                AppLog.i(TAG, "Auto-starting GNSS client service");
                 Intent serviceIntent = new Intent(context, GNSSClientService.class);
                 context.startForegroundService(serviceIntent);
             } else {
-                Log.d(TAG, "Not auto-starting GNSS client service: " + decision.name());
+                AppLog.d(TAG, "Not auto-starting GNSS client service: " + decision.name());
             }
 
             // Re-arm the persisted WiFi-connect autostart job (belt-and-suspenders; the job is

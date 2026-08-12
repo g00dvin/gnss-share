@@ -30,6 +30,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
+import android.widget.CheckBox;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Switch;
@@ -152,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
         setContentView(R.layout.activity_main_server);
+        AppLog.setDebug(Preferences.debugLoggingEnabled(this));
 
         applyWindowInsets();
         initializeViews();
@@ -255,6 +258,13 @@ public class MainActivity extends AppCompatActivity {
 
         fusedLocationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Preferences.setFusedLocationEnabled(this, isChecked);
+        });
+
+        CheckBox debugLoggingCheckbox = findViewById(R.id.debugLoggingCheckbox);
+        debugLoggingCheckbox.setChecked(Preferences.debugLoggingEnabled(this));
+        debugLoggingCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Preferences.setDebugLoggingEnabled(this, isChecked);
+            AppLog.setDebug(isChecked);
         });
 
         // Initialize settings UI

@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync Server</string>
+    <string name="debug_logging">Debug logging (verbose)</string>
     <string name="version_label">Version %s</string>
     <string name="app_description">LocSync location sharing server</string>
 

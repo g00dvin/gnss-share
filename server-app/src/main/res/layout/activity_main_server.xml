@@ -288,6 +288,15 @@
                     android:textSize="12sp"
                     android:textStyle="italic"
                     android:visibility="gone" />
+
+                <CheckBox
+                    android:id="@+id/debugLoggingCheckbox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/debug_logging"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
             </LinearLayout>
 
             <!-- Connection Details Section -->
