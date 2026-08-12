@@ -70,6 +70,8 @@ dependencies {
     implementation libs.protobuf.javalite
 
     implementation project(':shared')
+
+    testImplementation 'junit:junit:4.13.2'
 }
 
 // Configure protobuf plugin

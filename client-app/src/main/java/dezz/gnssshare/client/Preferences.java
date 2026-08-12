@@ -25,6 +25,9 @@ public class Preferences {
     private static final String PREF_USE_GATEWAY_IP = "useGatewayIp";
     private static final String PREF_SERVER_ADDRESS = "serverAddress";
     private static final String PREF_STATIC_JITTER_ENABLED = "staticJitterEnabled";
+    private static final String PREF_LAST_AUTOSTART_SOURCE = "lastAutostartSource";
+    private static final String PREF_LAST_AUTOSTART_RESULT = "lastAutostartResult";
+    private static final String PREF_LAST_AUTOSTART_TIME = "lastAutostartTime";
 
     // SharedPreferences helper methods
     public static void setServiceEnabled(Context context, boolean enabled) {
@@ -57,6 +60,31 @@ public class Preferences {
 
     public static boolean staticJitterEnabled(Context context) {
         return getPrefs(context).getBoolean(PREF_STATIC_JITTER_ENABLED, false);
+    }
+
+    /**
+     * Records the outcome of an autostart trigger so it survives a reboot (device-protected
+     * storage) and can be shown in the UI — useful for diagnosing whether/what fired on head
+     * units where logcat rolls across reboots.
+     */
+    public static void setLastAutostart(Context context, String source, String result) {
+        getPrefs(context).edit()
+                .putString(PREF_LAST_AUTOSTART_SOURCE, source)
+                .putString(PREF_LAST_AUTOSTART_RESULT, result)
+                .putLong(PREF_LAST_AUTOSTART_TIME, System.currentTimeMillis())
+                .apply();
+    }
+
+    public static String lastAutostartSource(Context context) {
+        return getPrefs(context).getString(PREF_LAST_AUTOSTART_SOURCE, null);
+    }
+
+    public static String lastAutostartResult(Context context) {
+        return getPrefs(context).getString(PREF_LAST_AUTOSTART_RESULT, null);
+    }
+
+    public static long lastAutostartTime(Context context) {
+        return getPrefs(context).getLong(PREF_LAST_AUTOSTART_TIME, 0);
     }
 
     private static SharedPreferences getPrefs(Context context) {

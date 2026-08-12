@@ -67,6 +67,7 @@
     <string name="service_status_title">Статус фоновой службы</string>
     <string name="service_running">✓ Служба запущена</string>
     <string name="service_stopped">✗ Служба остановлена</string>
+    <string name="autostart_diag">Последний автозапуск: %1$s → %2$s (%3$s)</string>
     <string name="enable_service">Старт</string>
     <string name="disable_service">Стоп</string>
     <string name="toast_service_enabled">GPS Клиент включен - будет запускаться автоматически</string>
