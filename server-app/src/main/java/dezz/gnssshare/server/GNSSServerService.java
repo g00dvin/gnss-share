@@ -48,29 +48,33 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.ArrayList;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import dezz.gnssshare.proto.LocationProto;
+import dezz.gnssshare.shared.Protocol;
 
 public class GNSSServerService extends Service {
     private static final String TAG = "GNSSServerService";
-    private static final int PORT = 8887;
     private static final String CHANNEL_ID = "GNSSServerChannel";
     private static final int NOTIFICATION_ID = 1;
     private static final String PREF_IS_SERVICE_ENABLED = "isServiceEnabled";
     private static final long BT_AUTO_STOP_DELAY_MS = 10000; // 10 seconds
+    private static final long CLIENT_TIMEOUT_MS = 5000;   // no HELLO for this long => client gone
+    private static final long KEEPALIVE_INTERVAL_MS = 1000; // resend latest response at least this often
 
     private static boolean running = false;
     private static GNSSServerService instance = null;
 
     private String serverStartError = null;
 
-    private ServerSocket serverSocket;
+    private DatagramSocket udpSocket;
+    private volatile SocketAddress clientAddr = null;   // the single current client
+    private volatile long lastHeard = 0;                // last HELLO time from clientAddr
+    private final Runnable keepaliveRunnable = this::keepaliveTick;
     private LocationManager locationManager = null;
     private FusedLocationProviderClient fusedLocationProviderClient = null;
     private final com.google.android.gms.location.LocationListener fusedLocationListener = this::handleLocationUpdate;
@@ -93,7 +97,6 @@ public class GNSSServerService extends Service {
 
     private NotificationManager notificationManager;
 
-    private final ArrayList<ClientHandler> connectedClients = new ArrayList<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final GnssStatus.Callback gnssStatusCallback = new GnssStatus.Callback() {
@@ -102,7 +105,7 @@ public class GNSSServerService extends Service {
             gnssStatus = status;
             lastServerResponse.setSatellites(getSatelliteCount());
 
-            if (isServiceRunning() && !connectedClients.isEmpty() && !lastServerResponse.hasLocationUpdate()) {
+            if (isServiceRunning() && clientAddr != null && !lastServerResponse.hasLocationUpdate()) {
                 mainHandler.post(() -> updateNotification("GNSS status changed"));
             }
         }
@@ -226,63 +229,81 @@ public class GNSSServerService extends Service {
     private void startServer() {
         executor.execute(() -> {
             try {
-                serverSocket = new ServerSocket(PORT);
-                Log.d(TAG, "Server started on port " + PORT);
+                udpSocket = new DatagramSocket(Protocol.PORT);
+                Log.d(TAG, "UDP server bound on port " + Protocol.PORT);
             } catch (Throwable e) {
-                Log.e(TAG, "Error starting server", e);
+                Log.e(TAG, "Error starting UDP server", e);
                 serverStartError = e.getMessage();
                 stopServer();
                 return;
             }
 
-            while (serverSocket != null && !serverSocket.isClosed()) {
+            mainHandler.post(() -> mainHandler.postDelayed(keepaliveRunnable, KEEPALIVE_INTERVAL_MS));
+
+            byte[] buffer = new byte[Protocol.MAX_PACKET_BYTES];
+            while (udpSocket != null && !udpSocket.isClosed()) {
                 try {
-                    Socket clientSocket = serverSocket.accept();
-                    Log.d(TAG, "Client connected: " + clientSocket.getRemoteSocketAddress());
-
-                    ClientHandler clientHandler = new ClientHandler(clientSocket);
-                    synchronized (connectedClients) {
-                        connectedClients.add(clientHandler);
-                        // Start location updates when first client connects
-                        if (connectedClients.size() == 1) {
-                            mainHandler.post(this::startLocationUpdates);
-                        }
-                    }
-                    executor.execute(clientHandler);
-
-                    // Cancel any pending BT auto-stop since a client just connected
-                    cancelBluetoothAutoStop();
-
-                    updateNotification("New client connected");
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    udpSocket.receive(packet);
+                    handlePacket(packet);
                 } catch (IOException e) {
-                    if (serverSocket != null && !serverSocket.isClosed()) {
-                        Log.e(TAG, "Error accepting client connection", e);
+                    if (udpSocket != null && !udpSocket.isClosed()) {
+                        Log.e(TAG, "Error receiving UDP packet", e);
                     }
                 }
             }
         });
     }
 
-    private void stopServer() {
-        Log.d(TAG, "Stopping server");
+    private void handlePacket(DatagramPacket packet) {
+        Protocol.Header header;
         try {
-            if (serverSocket != null) {
-                if (!serverSocket.isClosed()) {
-                    serverSocket.close();
-                }
-                serverSocket = null;
-            }
+            header = Protocol.parse(packet.getData(), packet.getLength());
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "Discarding malformed packet from " + packet.getSocketAddress());
+            return;
+        }
 
-            // Copy clients list to avoid concurrent modification
-            ArrayList<ClientHandler> clients;
-            synchronized (connectedClients) {
-                clients = new ArrayList<>(connectedClients);
+        if (!Protocol.isSupportedVersion(header.version)) {
+            Log.w(TAG, "Version mismatch from " + packet.getSocketAddress() + ": " + header.version);
+            sendPacket(Protocol.buildPacket(Protocol.TYPE_VERSION_MISMATCH,
+                    new byte[]{(byte) Protocol.VERSION}), packet.getSocketAddress());
+            return;
+        }
+
+        if (header.type == Protocol.TYPE_HELLO) {
+            boolean isNewClient = (clientAddr == null);
+            clientAddr = packet.getSocketAddress();
+            lastHeard = System.currentTimeMillis();
+            if (isNewClient) {
+                Log.i(TAG, "Client present: " + clientAddr);
+                mainHandler.post(this::startLocationUpdates);
+                cancelBluetoothAutoStop();
+                mainHandler.post(() -> updateNotification("Client connected"));
             }
-            for (ClientHandler client : clients) {
-                client.disconnect();
-            }
+        } else {
+            Log.w(TAG, "Unexpected packet type from client: " + header.type);
+        }
+    }
+
+    private void sendPacket(byte[] data, SocketAddress dest) {
+        if (udpSocket == null || udpSocket.isClosed() || dest == null) {
+            return;
+        }
+        try {
+            udpSocket.send(new DatagramPacket(data, data.length, dest));
         } catch (IOException e) {
-            Log.e(TAG, "Error stopping server", e);
+            Log.w(TAG, "Error sending UDP packet", e);
+        }
+    }
+
+    private void stopServer() {
+        Log.d(TAG, "Stopping UDP server");
+        mainHandler.removeCallbacks(keepaliveRunnable);
+        clientAddr = null;
+        if (udpSocket != null) {
+            udpSocket.close();
+            udpSocket = null;
         }
     }
 
@@ -330,7 +351,7 @@ public class GNSSServerService extends Service {
     }
 
     private void stopLocationUpdates() {
-        if (running && !connectedClients.isEmpty()) {
+        if (running && clientAddr != null) {
             Log.w(TAG, "Location updates not stopped: still have clients connected");
             return;
         }
@@ -385,42 +406,42 @@ public class GNSSServerService extends Service {
 
         updateNotification("Received location update");
 
-        // Broadcast to all connected clients
-        Log.d(TAG, "Broadcasting location to " + connectedClients.size() + " clients: " + location);
+        // Broadcast to the connected client
+        Log.d(TAG, "Broadcasting location: " + location);
         executor.execute(() -> broadcastLocationUpdate(lastServerResponse.build()));
     }
 
     private void broadcastLocationUpdate(LocationProto.ServerResponse serverResponse) {
-        // Copy clients list to avoid concurrent modification
-        ArrayList<ClientHandler> clients;
-        synchronized (connectedClients) {
-            clients = new ArrayList<>(connectedClients);
+        SocketAddress dest = clientAddr;
+        if (dest == null) {
+            return;
         }
-        for (ClientHandler client : clients) {
-            client.sendResponse(serverResponse);
+        sendPacket(Protocol.buildPacket(Protocol.TYPE_RESPONSE, serverResponse.toByteArray()), dest);
+    }
+
+    private void keepaliveTick() {
+        SocketAddress dest = clientAddr;
+        if (dest != null) {
+            long silence = System.currentTimeMillis() - lastHeard;
+            if (silence > CLIENT_TIMEOUT_MS) {
+                Log.i(TAG, "Client timed out (" + silence + "ms), marking gone");
+                clientAddr = null;
+                onClientGone();
+            } else {
+                // Resend the latest response so the client's recency clock stays fresh.
+                broadcastLocationUpdate(lastServerResponse.build());
+            }
+        }
+        if (running) {
+            mainHandler.postDelayed(keepaliveRunnable, KEEPALIVE_INTERVAL_MS);
         }
     }
 
-    private void onClientDisconnected(ClientHandler client) {
-        synchronized (connectedClients) {
-            boolean wasRemoved = connectedClients.remove(client);
-            if (wasRemoved) {
-                Log.d(TAG, "Client removed: " + client.getClientAddress() +
-                        ". Remaining clients: " + connectedClients.size());
-
-                if (running && connectedClients.isEmpty()) {
-                    Log.d(TAG, "No clients remaining, scheduling stopping of location updates in 15 seconds");
-                    mainHandler.removeCallbacks(this.stopLocationUpdates);
-                    mainHandler.postDelayed(this.stopLocationUpdates, 15000);
-                }
-            } else {
-                Log.d(TAG, "Client was already removed: " + client.getClientAddress());
-            }
-        }
-
-        // Evaluate auto-stop (will schedule only if both BT and clients are gone)
+    private void onClientGone() {
+        Log.d(TAG, "No client; scheduling stop of location updates in 15 seconds");
+        mainHandler.removeCallbacks(this.stopLocationUpdates);
+        mainHandler.postDelayed(this.stopLocationUpdates, 15000);
         evaluateAutoStop();
-
         mainHandler.post(() -> updateNotification("Client disconnected"));
     }
 
@@ -462,17 +483,10 @@ public class GNSSServerService extends Service {
 
         String content;
         if (serverStartError == null) {
-            synchronized (connectedClients) {
-                Log.d(TAG, String.format("Clients connected: %d", connectedClients.size()));
-                if (connectedClients.isEmpty()) {
-                    Log.d(TAG, "No clients connected");
-                    content = getString(R.string.notification_no_clients);
-                } else {
-                    content = String.format(
-                            getString(R.string.notification_clients),
-                            connectedClients.size()
-                    );
-                }
+            if (clientAddr != null) {
+                content = getString(R.string.notification_clients_single);
+            } else {
+                content = getString(R.string.notification_no_clients);
             }
 
             content += getString(R.string.notification_divider);
@@ -543,7 +557,7 @@ public class GNSSServerService extends Service {
     //   - btAutoStopService() re-checks conditions as a safety net before actually stopping.
 
     /**
-     * Called from BluetoothReceiver (BT disconnect) and onClientDisconnected (last client gone).
+     * Called from BluetoothReceiver (BT disconnect) and onClientGone (client timed out).
      * Schedules auto-stop only if both conditions are met.
      */
     public static void evaluateAutoStop() {
@@ -552,7 +566,7 @@ public class GNSSServerService extends Service {
         }
     }
 
-    /** Called from BluetoothReceiver (BT reconnect) and startServer (new client connect). */
+    /** Called from BluetoothReceiver (BT reconnect) and handlePacket (new client connect). */
     public static void cancelBluetoothAutoStopRequest() {
         if (instance != null) {
             instance.cancelBluetoothAutoStop();
@@ -569,10 +583,7 @@ public class GNSSServerService extends Service {
         }
 
         boolean btGone = BluetoothReceiver.allTriggerDevicesDisconnected();
-        boolean clientsGone;
-        synchronized (connectedClients) {
-            clientsGone = connectedClients.isEmpty();
-        }
+        boolean clientsGone = (clientAddr == null);
 
         if (btGone && clientsGone) {
             Log.d(TAG, "All BT devices and clients disconnected, scheduling auto-stop in " + BT_AUTO_STOP_DELAY_MS + "ms");
@@ -591,10 +602,7 @@ public class GNSSServerService extends Service {
     private void btAutoStopService() {
         // Safety net: re-check conditions before stopping
         boolean btGone = BluetoothReceiver.allTriggerDevicesDisconnected();
-        boolean clientsGone;
-        synchronized (connectedClients) {
-            clientsGone = connectedClients.isEmpty();
-        }
+        boolean clientsGone = (clientAddr == null);
         if (!btGone || !clientsGone) {
             Log.i(TAG, "Bluetooth auto-stop skipped (BT connected: " + !btGone + ", clients connected: " + !clientsGone + ")");
             return;
@@ -604,125 +612,4 @@ public class GNSSServerService extends Service {
         stopSelf();
     }
 
-    private class ClientHandler implements Runnable {
-        private static final long HEARTBEAT_TIMEOUT = 3000;
-        private static final byte HEARTBEAT_PACKET = 0x01; // Expected heartbeat packet
-        private static final long RESPONSE_TIMING_REQUIREMENT = 1000;
-
-        private final Socket socket;
-        private final String clientAddress;
-        private long lastHeartbeatTime;
-        private long lastResponseTime = 0;
-
-        public ClientHandler(Socket socket) {
-            this.socket = socket;
-            this.clientAddress = socket.getRemoteSocketAddress().toString();
-            this.lastHeartbeatTime = System.currentTimeMillis();
-
-            Log.i(TAG, "New client connected: " + clientAddress);
-        }
-
-        public String getClientAddress() {
-            return clientAddress;
-        }
-
-        @Override
-        public void run() {
-            try {
-                // Set socket timeout for heartbeat detection
-                socket.setSoTimeout(1000); // timeout for reads
-                sendResponse(lastServerResponse.build());
-
-                // Keep connection alive and handle request packets
-                byte[] buffer = new byte[1];
-                while (!socket.isClosed()) {
-                    try {
-                        // Try to read request packet
-                        int result = socket.getInputStream().read(buffer);
-                        if (socket.isClosed()) {
-                            Log.i(TAG, "Client closed connection: " + clientAddress);
-                            break;
-                        }
-                        if (result > 0) {
-                            // Received data from client
-                            if (buffer[0] == HEARTBEAT_PACKET) {
-                                // Valid heartbeat packet received
-                                lastHeartbeatTime = System.currentTimeMillis();
-                                Log.v(TAG, "Heartbeat received from: " + clientAddress);
-
-                                // Send response if last response was sent more than RESPONSE_TIMING_REQUIREMENT ago
-                                // so the client will be sure that the server is still alive
-                                if (lastResponseTime < lastHeartbeatTime - RESPONSE_TIMING_REQUIREMENT ||
-                                        !lastServerResponse.hasLocationUpdate()) {
-                                    sendResponse(lastServerResponse.build());
-                                }
-                                continue;
-                            } else {
-                                Log.w(TAG, "Unknown packet received from client: " + buffer[0]);
-                            }
-                        }
-                    } catch (java.net.SocketTimeoutException e) {
-                        // Heartbeat timeout will be processed after this block
-                    } catch (IOException e) {
-                        Log.i(TAG, "Client disconnected: " + clientAddress + " - " + e.getMessage());
-                        break;
-                    }
-
-                    // Check if heartbeat timeout exceeded
-                    // This will be processed after the timeout exception as well as after receiving
-                    // an unknown packet
-                    long timeSinceLastHeartbeat = System.currentTimeMillis() - lastHeartbeatTime;
-                    if (timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
-                        Log.w(TAG, "Heartbeat timeout for client: " + clientAddress +
-                                " (last heartbeat " + timeSinceLastHeartbeat + "ms ago)");
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error in client handler for " + clientAddress, e);
-            } finally {
-                disconnect();
-            }
-        }
-
-        private void sendResponse(LocationProto.ServerResponse response) {
-            if (socket.isClosed()) {
-                return;
-            }
-            try {
-                byte[] data = response.toByteArray();
-                // Send length first (4 bytes) then data
-                OutputStream output = socket.getOutputStream();
-                output.write(intToBytes(data.length));
-                output.write(data);
-                output.flush();
-
-                Log.v(TAG, "Response sent to: " + clientAddress);
-
-                lastResponseTime = System.currentTimeMillis();
-            } catch (IOException e) {
-                Log.w(TAG, "Error sending location update to client", e);
-                disconnect();
-            }
-        }
-
-        public void disconnect() {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing client socket", e);
-            }
-
-            onClientDisconnected(this);
-        }
-
-        private byte[] intToBytes(int value) {
-            return new byte[]{
-                    (byte) (value >>> 24),
-                    (byte) (value >>> 16),
-                    (byte) (value >>> 8),
-                    (byte) value
-            };
-        }
-    }
 }
