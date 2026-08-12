@@ -71,7 +71,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long lastResponseTime = 0;
 
-    private DatagramSocket udpSocket;
+    private volatile DatagramSocket udpSocket;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final long HELLO_INTERVAL_MS = 1000;
     private static final long CONNECTED_TIMEOUT_MS = 3000;
@@ -175,6 +175,14 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             return;
         }
 
+        try {
+            udpSocket = new DatagramSocket();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to open UDP socket", e);
+            running.set(false);   // allow a later onAvailable() to retry
+            return;
+        }
+
         String server = connectionManager.resolveServerAddress();
         connectionManager.setState(ConnectionManager.ConnectionState.CONNECTING, "Connecting to server...", server);
 
@@ -227,12 +235,13 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         if (server == null) {
             server = connectionManager.resolveServerAddress();
         }
-        if (server != null && udpSocket != null) {
+        final DatagramSocket sock = udpSocket;
+        if (server != null && sock != null) {
             final String dest = server;
             executor.execute(() -> {
                 try {
                     byte[] hello = Protocol.buildPacket(Protocol.TYPE_HELLO, null);
-                    udpSocket.send(new DatagramPacket(hello, hello.length,
+                    sock.send(new DatagramPacket(hello, hello.length,
                             InetAddress.getByName(dest), Protocol.PORT));
                 } catch (IOException e) {
                     Log.w(TAG, "Failed to send HELLO", e);
@@ -249,21 +258,25 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     }
 
     private void receiveLoop() {
-        try {
-            udpSocket = new DatagramSocket();
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to open UDP socket", e);
+        DatagramSocket sock = udpSocket;
+        if (sock == null) {
             return;
         }
         byte[] buffer = new byte[Protocol.MAX_PACKET_BYTES];
-        while (running.get() && udpSocket != null && !udpSocket.isClosed()) {
+        while (running.get() && !sock.isClosed()) {
             try {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                udpSocket.receive(packet);
+                sock.receive(packet);
                 handlePacket(packet);
             } catch (IOException e) {
-                if (running.get()) {
-                    Log.v(TAG, "UDP receive interrupted: " + e.getMessage());
+                if (running.get() && !sock.isClosed()) {
+                    Log.v(TAG, "UDP receive error: " + e.getMessage());
+                    try {
+                        Thread.sleep(200);   // avoid hot-spin on repeated errors
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
         }

@@ -40,8 +40,8 @@ public class ConnectionManager {
     private final ConnectionListener listener;
     private final Context context;
 
-    private ConnectionState currentState = ConnectionState.DISCONNECTED;
-    private String serverAddress = null;
+    private volatile ConnectionState currentState = ConnectionState.DISCONNECTED;
+    private volatile String serverAddress = null;
 
     public ConnectionManager(Context context, ConnectionListener listener) {
         this.context = context;
