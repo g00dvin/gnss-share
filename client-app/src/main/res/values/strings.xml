@@ -62,7 +62,7 @@
     <string name="unknown">unknown</string>
 
     <string name="select_server_address_title">Server Address</string>
-    <string name="connect_to_gateway_ip">Use gateway IP (server on Wi-Fi mobile hotspot)</string>
+    <string name="auto_discover_server">Auto-discover server (broadcast)</string>
     <string name="set_hostname_or_ip_address_manually">Set hostname or IP address manually</string>
     <string name="editServerIp">Server hostname or IP address</string>
 

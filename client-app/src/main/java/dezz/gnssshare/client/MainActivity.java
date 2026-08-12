@@ -214,23 +214,23 @@ public class MainActivity extends AppCompatActivity {
                 )
         );
 
-        boolean useGatewayIp = Preferences.useGatewayIp(this);
-        RadioButton connectToGatewayIpRadio = findViewById(R.id.connectToGatewayIpRadioButton);
+        boolean autoDiscover = Preferences.autoDiscover(this);
+        RadioButton autoDiscoverRadio = findViewById(R.id.connectToGatewayIpRadioButton);
         RadioButton setIpManuallyRadio = findViewById(R.id.setIpManuallyRadioButton);
-        connectToGatewayIpRadio.setChecked(useGatewayIp);
-        connectToGatewayIpRadio.setOnClickListener(v -> {
-            Preferences.setUseGatewayIp(this, true);
+        autoDiscoverRadio.setChecked(autoDiscover);
+        autoDiscoverRadio.setOnClickListener(v -> {
+            Preferences.setAutoDiscover(this, true);
             serverIpEditLabel.setEnabled(false);
             serverIpEdit.setEnabled(false);
         });
-        setIpManuallyRadio.setChecked(!useGatewayIp);
+        setIpManuallyRadio.setChecked(!autoDiscover);
         setIpManuallyRadio.setOnClickListener(v -> {
-            Preferences.setUseGatewayIp(this, false);
+            Preferences.setAutoDiscover(this, false);
             serverIpEditLabel.setEnabled(true);
             serverIpEdit.setEnabled(true);
         });
-        serverIpEditLabel.setEnabled(!useGatewayIp);
-        serverIpEdit.setEnabled(!useGatewayIp);
+        serverIpEditLabel.setEnabled(!autoDiscover);
+        serverIpEdit.setEnabled(!autoDiscover);
         serverIpEdit.setText(Preferences.serverAddress(this));
 
         // Set up permissions button click listener

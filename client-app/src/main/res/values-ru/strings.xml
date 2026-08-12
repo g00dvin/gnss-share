@@ -60,7 +60,7 @@
     <string name="unknown">неизвестно</string>
 
     <string name="select_server_address_title">Адрес сервера</string>
-    <string name="connect_to_gateway_ip">Использовать IP точки доступа</string>
+    <string name="auto_discover_server">Автопоиск сервера (broadcast)</string>
     <string name="set_hostname_or_ip_address_manually">Ввести имя хоста или IP адрес вручную</string>
     <string name="editServerIp">Имя сервера или IP адрес</string>
 
