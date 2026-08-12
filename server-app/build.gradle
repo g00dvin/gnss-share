@@ -32,6 +32,10 @@ android {
         resValue "string", "build_label", (System.getenv("BUILD_LABEL") ?: "")
     }
 
+    buildFeatures {
+        resValues true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
