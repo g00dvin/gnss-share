@@ -3,4 +3,6 @@ build
 .idea
 local.properties
 *.jks
+*.jks.b64
+keystore.b64
 client-app/libs
