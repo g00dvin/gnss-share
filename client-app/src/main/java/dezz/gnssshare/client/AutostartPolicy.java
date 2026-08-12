@@ -20,7 +20,7 @@ package dezz.gnssshare.client;
 /**
  * Pure decision logic for whether an autostart trigger should launch the client service.
  * Kept free of Android APIs so it can be unit-tested. Shared by BootReceiver (which passes
- * wifiConnected=true, since boot does not gate on WiFi) and HotspotConnectReceiver.
+ * wifiConnected=true, since boot does not gate on WiFi) and AutostartJobService.
  */
 public final class AutostartPolicy {
 

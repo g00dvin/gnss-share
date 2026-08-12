@@ -54,11 +54,12 @@ public class AutostartJobService extends JobService {
             ContextCompat.startForegroundService(this, new Intent(this, GNSSClientService.class));
         }
 
-        // Re-arm while still enabled so future WiFi connects (or a service kill) are caught again.
-        // A one-shot network job completes after this run; without re-scheduling it would not fire
-        // again. If the user disabled the service, leave it cancelled.
+        // Re-arm (with a cooldown) while still enabled so future WiFi connects — or a service kill —
+        // are caught again. A one-shot network job completes after this run; the cooldown prevents a
+        // level-triggered reschedule loop while WiFi stays connected. If the user disabled the
+        // service, leave it cancelled.
         if (serviceEnabled) {
-            AutostartScheduler.schedule(this);
+            AutostartScheduler.rearm(this);
         }
 
         return false; // work finished synchronously; no background thread needed
@@ -66,7 +67,9 @@ public class AutostartJobService extends JobService {
 
     @Override
     public boolean onStopJob(JobParameters params) {
-        return true; // ask the system to reschedule if it stopped us before completion
+        // onStartJob returns false (synchronous), so the system does not consider the job running
+        // and this is effectively never called; return true to be safe if that ever changes.
+        return true;
     }
 
     private static boolean isWifiConnected(Context context) {

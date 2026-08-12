@@ -25,8 +25,10 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
+import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -266,6 +268,21 @@ public class MainActivity extends AppCompatActivity {
         updateAutostartDiag();
     }
 
+    @SuppressLint("BatteryLife")
+    private void ensureBatteryOptimizationExemption() {
+        PowerManager pm = getSystemService(PowerManager.class);
+        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            return;
+        }
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Battery optimization exemption request failed", e);
+        }
+    }
+
     /** Shows the last recorded autostart trigger (survives reboot) to aid on-device diagnosis. */
     private void updateAutostartDiag() {
         String source = Preferences.lastAutostartSource(this);
@@ -304,6 +321,10 @@ public class MainActivity extends AppCompatActivity {
 
         // Arm the persisted WiFi-connect autostart job.
         AutostartScheduler.schedule(this);
+
+        // Reliable autostart/foreground-start on API 30+ depends on the app being exempt from
+        // battery optimization; request it once here (no-op if already granted).
+        ensureBatteryOptimizationExemption();
 
         Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
     }
