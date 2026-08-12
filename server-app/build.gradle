@@ -24,6 +24,7 @@ android {
     compileSdkVersion 36
 
     defaultConfig {
+        applicationId "dezz.locsync.server"
         minSdk 24
         targetSdkVersion 36
         versionCode rootProject.ext.appVersionCode
@@ -64,7 +65,7 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("gnss-server-${android.defaultConfig.versionName}.apk")
+            output.outputFileName.set("locsync-server-${android.defaultConfig.versionName}.apk")
         }
     }
 }
