@@ -42,6 +42,19 @@ public class LocationKalmanFilterTest {
     }
 
     @Test
+    public void resetForgetsState() {
+        LocationKalmanFilter f = newFilter();
+        f.update(59.0, 30.0, 10.0, 90.0, 5.0, 1.0, 5.0);
+        assertTrue(f.isInitialized());
+        f.reset();
+        assertTrue(!f.isInitialized());
+        // after reset, the next update re-anchors at the new position
+        f.update(60.0, 31.0, 0.0, 0.0, 5.0, 1.0, 30.0);
+        assertEquals(60.0, f.getLatitude(), 1e-6);
+        assertEquals(31.0, f.getLongitude(), 1e-6);
+    }
+
+    @Test
     public void predictAdvancesAlongVelocity() {
         LocationKalmanFilter f = newFilter();
         f.update(59.0, 30.0, 10.0, 90.0, 5.0, 1.0, 5.0); // east 10 m/s

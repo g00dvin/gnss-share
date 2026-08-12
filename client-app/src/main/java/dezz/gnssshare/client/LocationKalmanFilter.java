@@ -50,6 +50,11 @@ public class LocationKalmanFilter {
         return initialized;
     }
 
+    /** Forget all state so the next update() re-anchors fresh (e.g. after a reconnect). */
+    public void reset() {
+        initialized = false;
+    }
+
     public void update(double lat, double lon, double speed, double bearingDeg,
                        double accuracy, double speedAccuracy, double bearingAccuracyDeg) {
         if (!initialized) {

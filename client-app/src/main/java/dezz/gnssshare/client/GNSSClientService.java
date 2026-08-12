@@ -235,6 +235,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         }
         lastFixElapsedMs = 0;
         lastPredictElapsedMs = 0;
+        kalman.reset();
         lastBroadcastSatelliteCount = -1;
         broadcastSatelliteStatusToWidget(0);
 
