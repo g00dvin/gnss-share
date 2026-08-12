@@ -71,7 +71,7 @@ public class GNSSServerService extends Service {
 
     private String serverStartError = null;
 
-    private DatagramSocket udpSocket;
+    private volatile DatagramSocket udpSocket;
     private volatile SocketAddress clientAddr = null;   // the single current client
     private volatile long lastHeard = 0;                // last HELLO time from clientAddr
     private final Runnable keepaliveRunnable = this::keepaliveTick;
@@ -425,11 +425,14 @@ public class GNSSServerService extends Service {
             long silence = System.currentTimeMillis() - lastHeard;
             if (silence > CLIENT_TIMEOUT_MS) {
                 Log.i(TAG, "Client timed out (" + silence + "ms), marking gone");
-                clientAddr = null;
-                onClientGone();
+                if (clientAddr == dest) {          // still the same client we timed out
+                    clientAddr = null;
+                    onClientGone();
+                }
             } else {
                 // Resend the latest response so the client's recency clock stays fresh.
-                broadcastLocationUpdate(lastServerResponse.build());
+                LocationProto.ServerResponse resp = lastServerResponse.build();
+                executor.execute(() -> broadcastLocationUpdate(resp));
             }
         }
         if (running) {
