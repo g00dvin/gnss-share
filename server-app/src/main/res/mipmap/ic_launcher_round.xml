@@ -1,0 +1,14 @@
+<!-- Legacy composited round icon (API < 26 fallback). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <path
+      android:fillColor="@color/ic_launcher_background"
+      android:pathData="M54,0 A54,54 0 1 1 54,108 A54,54 0 1 1 54,0 Z"/>
+  <path
+      android:fillColor="#FFFFFF"
+      android:fillType="evenOdd"
+      android:pathData="M54,24 C66.7,24 77,34.3 77,47 C77,62 65,72 54,86 C43,72 31,62 31,47 C31,34.3 41.3,24 54,24 Z M50,37 L58,37 C60,46 63.5,54 67,62 L41,62 C44.5,54 48,46 50,37 Z"/>
+</vector>

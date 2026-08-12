@@ -16,8 +16,8 @@
   -->
 
 <resources>
-    <string name="app_name">GPS сервер</string>
-    <string name="app_description">Сервер передачи данных о местоположении</string>
+    <string name="app_name">LocSync сервер</string>
+    <string name="app_description">LocSync — сервер передачи данных о местоположении</string>
 
     <string name="notification_title">%s работает</string>
     <string name="notification_failed_title">%s ошибка запуска</string>
