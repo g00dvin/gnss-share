@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync сервер</string>
+    <string name="version_label">Версия %s</string>
     <string name="app_description">LocSync — сервер передачи данных о местоположении</string>
 
     <string name="notification_title">%s работает</string>

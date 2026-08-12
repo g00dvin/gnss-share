@@ -355,6 +355,17 @@
         </LinearLayout>
     </ScrollView>
 
+    <!-- App version -->
+    <TextView
+        android:id="@+id/versionText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingTop="6dp"
+        android:paddingBottom="2dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
     <!-- Copyright notice -->
     <TextView
         android:layout_width="match_parent"

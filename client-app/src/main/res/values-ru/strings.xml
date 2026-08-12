@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync клиент</string>
+    <string name="version_label">Версия %s</string>
     <string name="connection_status_title">Статус подключения</string>
     <string name="connected">Подключено</string>
     <string name="connecting">Подключение…</string>

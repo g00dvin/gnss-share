@@ -221,6 +221,9 @@ public class MainActivity extends AppCompatActivity {
         final String appVersion = VersionGetter.getAppVersionName(this);
         header.setText(String.format("%s %s", getString(R.string.app_name), appVersion));
 
+        TextView versionText = findViewById(R.id.versionText);
+        versionText.setText(String.format(getString(R.string.version_label), appVersion));
+
         requestPermissionsButton.setOnClickListener(v -> requestPermissions());
         startServiceButton.setOnClickListener(v -> startGNSSService());
         stopServiceButton.setOnClickListener(v -> stopGNSSService());
