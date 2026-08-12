@@ -28,4 +28,6 @@ message LocationUpdate {
   float speed = 7;               // m/s
   string provider = 9;           // "gps", "network", "fused", etc.
   float location_age = 10;       // Seconds since fix
+  optional float speed_accuracy = 11;    // m/s, from Fused Location.getSpeedAccuracyMetersPerSecond()
+  optional float bearing_accuracy = 12;  // degrees, from Fused Location.getBearingAccuracyDegrees()
 }

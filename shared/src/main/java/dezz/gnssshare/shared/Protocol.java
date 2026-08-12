@@ -21,7 +21,7 @@ public final class Protocol {
 
     private Protocol() {}
 
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
     public static final int PORT = 8887;
     public static final int HEADER_BYTES = 2; // [version][type]
     public static final int MAX_PACKET_BYTES = 2048;

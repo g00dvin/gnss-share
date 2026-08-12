@@ -66,10 +66,18 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
     private Location lastReceivedLocation;
     private static long lastUpdateTime;
-    private long lastLocationTimestamp = 0;
     private int lastBroadcastSatelliteCount = -1;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long lastResponseTime = 0;
+
+    private final LocationKalmanFilter kalman = new LocationKalmanFilter(2.0, 1.0);
+    private static final long OUTPUT_INTERVAL_MS = 100;   // 10 Hz
+    private static final float STOP_SPEED_MPS = 0.5f;
+    private static final long GPS_LOSS_CAP_MS = 2500;
+    private volatile long lastFixElapsedMs = 0;           // SystemClock.elapsedRealtime of last real fix
+    private long lastPredictElapsedMs = 0;
+    private volatile double lastAltitude = 0;
+    private final Runnable smoothingTick = this::smoothingTick;
 
     private volatile DatagramSocket udpSocket;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -209,6 +217,9 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         executor.execute(this::receiveLoop);
         mainHandler.post(helloTick);
+
+        lastPredictElapsedMs = 0;
+        mainHandler.post(smoothingTick);
     }
 
     private void stopTransport(String reason) {
@@ -217,11 +228,14 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         }
         Log.i(TAG, "Stopping transport: " + reason);
         mainHandler.removeCallbacks(helloTick);
+        mainHandler.removeCallbacks(smoothingTick);
         if (udpSocket != null) {
             udpSocket.close();
             udpSocket = null;
         }
-        lastLocationTimestamp = 0;
+        lastFixElapsedMs = 0;
+        lastPredictElapsedMs = 0;
+        kalman.reset();
         lastBroadcastSatelliteCount = -1;
         broadcastSatelliteStatusToWidget(0);
 
@@ -364,13 +378,78 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             intent.putExtra("locationAge", locationUpdate.getLocationAge());
             sendBroadcast(intent);
 
-            // Only push to mock locations if GPS timestamp is new
-            // (avoids re-pushing stale location when server has no fresh GPS fix)
-            long gpsTimestamp = locationUpdate.getTimestamp();
-            if (gpsTimestamp != lastLocationTimestamp) {
-                lastLocationTimestamp = gpsTimestamp;
-                mockLocationManager.setMockLocation(location);
+            // Feed the fix into the Kalman filter on the main thread; the smoothing loop
+            // (also main-thread) reads/predicts the same filter, so all access is confined
+            // to one thread and no synchronization is needed.
+            final double lat = locationUpdate.getLatitude();
+            final double lon = locationUpdate.getLongitude();
+            final float spd = locationUpdate.getSpeed();
+            final float brg = locationUpdate.getBearing();
+            final float acc = locationUpdate.getAccuracy();
+            final float spdAcc = locationUpdate.getSpeedAccuracy();
+            final float brgAcc = locationUpdate.getBearingAccuracy();
+            final double alt = locationUpdate.getAltitude();
+            mainHandler.post(() -> {
+                try {
+                    long nowElapsed = SystemClock.elapsedRealtime();
+                    if (kalman.isInitialized() && lastPredictElapsedMs > 0) {
+                        // Cap dt so a long GPS gap can't feed a huge predict step (bounds process-noise growth).
+                        double dt = Math.min((nowElapsed - lastPredictElapsedMs) / 1000.0, 5.0);
+                        kalman.predict(dt);
+                    }
+                    kalman.update(lat, lon, spd, brg, acc, spdAcc, brgAcc);
+                    lastAltitude = alt;
+                    lastFixElapsedMs = nowElapsed;
+                    lastPredictElapsedMs = nowElapsed;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error updating Kalman filter", e);
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e(TAG, "Security exception - mock location permission denied", e);
+            broadcastMockLocationStatus(getString(R.string.mock_location_permission_denied), true);
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting mock location", e);
+            broadcastMockLocationStatus(String.format(getString(R.string.mock_location_setup_failed), e.getMessage()), true);
+        }
+    }
+
+    private void smoothingTick() {
+        if (!running.get()) {
+            return;
+        }
+        long nowElapsed = SystemClock.elapsedRealtime();
+        boolean gpsLost = lastFixElapsedMs == 0 || (nowElapsed - lastFixElapsedMs) > GPS_LOSS_CAP_MS;
+
+        if (kalman.isInitialized() && !gpsLost) {
+            if (lastPredictElapsedMs > 0) {
+                kalman.predict((nowElapsed - lastPredictElapsedMs) / 1000.0);
             }
+            lastPredictElapsedMs = nowElapsed;
+            injectSmoothed(nowElapsed);
+        }
+        // When GPS is lost, we simply stop advancing/injecting (freeze) until fixes resume.
+
+        mainHandler.postDelayed(smoothingTick, OUTPUT_INTERVAL_MS);
+    }
+
+    private void injectSmoothed(long nowElapsed) {
+        Location loc = new Location(LocationManager.GPS_PROVIDER);
+        loc.setLatitude(kalman.getLatitude());
+        loc.setLongitude(kalman.getLongitude());
+        loc.setAltitude(lastAltitude);
+        loc.setAccuracy((float) kalman.getAccuracy());
+        double speed = kalman.getSpeed();
+        if (speed >= STOP_SPEED_MPS) {
+            loc.setSpeed((float) speed);
+            loc.setBearing((float) kalman.getBearingDeg());
+        }
+        loc.setTime(System.currentTimeMillis());
+        loc.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
+        lastReceivedLocation = loc;
+        lastUpdateTime = System.currentTimeMillis();
+        try {
+            mockLocationManager.setMockLocation(loc);
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception - mock location permission denied", e);
             broadcastMockLocationStatus(getString(R.string.mock_location_permission_denied), true);
