@@ -64,7 +64,7 @@
     <string name="toast_service_disabled">Фоновая служба отключена - не будет запускаться автоматически</string>
 
     <string name="technical_details_title">Детали подключения</string>
-    <string name="technical_details">• Доступные сетевые интерфейсы для подключения клиентов (включите точку доступа Wi-Fi, чтобы увидеть её IP-адрес):\n%s• Порт сервера: 8887 (TCP)</string>
+    <string name="technical_details">• Доступные сетевые интерфейсы для подключения клиентов (включите точку доступа Wi-Fi, чтобы увидеть её IP-адрес):\n%s• Порт сервера: 8887 (UDP)</string>
     <string name="interface_hotspot">Точка доступа Wi-Fi</string>
     <string name="interface_none">нет</string>
     <string name="instructions_title">Инструкция по настройке</string>

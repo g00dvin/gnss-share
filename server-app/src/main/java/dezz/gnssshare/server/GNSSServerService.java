@@ -228,6 +228,13 @@ public class GNSSServerService extends Service {
 
     private void startServer() {
         executor.execute(() -> {
+            // Guard against START_STICKY redelivery (or any re-entry) while already bound: binding
+            // the port again would throw BindException and the catch below would tear down the
+            // live socket. If we're already running, do nothing.
+            if (udpSocket != null && !udpSocket.isClosed()) {
+                Log.d(TAG, "UDP server already running; ignoring start request");
+                return;
+            }
             try {
                 udpSocket = new DatagramSocket(Protocol.PORT);
                 Log.d(TAG, "UDP server bound on port " + Protocol.PORT);
