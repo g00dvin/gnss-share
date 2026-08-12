@@ -40,6 +40,7 @@
     <string name="mock_location_permission_denied">Mock location permission denied - check Developer Options</string>
     <string name="mock_location_setup_failed">Mock location setup failed: %s</string>
     <string name="mock_location_provider_ready">✓ Mock location provider ready</string>
+    <string name="version_mismatch">Server version mismatch — update both apps</string>
 
     <string name="permission_fine_location">Fine Location</string>
     <string name="permission_coarse_location">Coarse Location</string>
