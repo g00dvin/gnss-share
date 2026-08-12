@@ -163,7 +163,7 @@
                         android:id="@+id/connectToGatewayIpRadioButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/connect_to_gateway_ip"
+                        android:text="@string/auto_discover_server"
                         android:checked="true" />
                     <RadioButton
                         android:id="@+id/setIpManuallyRadioButton"

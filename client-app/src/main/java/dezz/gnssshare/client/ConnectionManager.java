@@ -18,8 +18,6 @@
 package dezz.gnssshare.client;
 
 import android.content.Context;
-import android.net.DhcpInfo;
-import android.net.wifi.WifiManager;
 import android.util.Log;
 
 import java.util.Objects;
@@ -42,20 +40,35 @@ public class ConnectionManager {
 
     private volatile ConnectionState currentState = ConnectionState.DISCONNECTED;
     private volatile String serverAddress = null;
+    private volatile String learnedServerAddress = null;
 
     public ConnectionManager(Context context, ConnectionListener listener) {
         this.context = context;
         this.listener = listener;
     }
 
-    /** Resolve the server address from preferences (gateway IP or fixed). May return null. */
-    public String resolveServerAddress() {
-        if (Preferences.useGatewayIp(context)) {
-            serverAddress = getGatewayIpAddress(context);
-        } else {
-            serverAddress = Preferences.serverAddress(context);
+    /** True when in Auto-discover mode (vs Fixed address). */
+    public boolean isAutoDiscover() {
+        return Preferences.autoDiscover(context);
+    }
+
+    /**
+     * Address to send HELLO to. In Fixed mode: the configured address. In Auto mode: the learned
+     * server address, or null when it hasn't been discovered yet (caller should broadcast).
+     */
+    public String getSendTarget() {
+        if (isAutoDiscover()) {
+            return learnedServerAddress;
         }
-        return serverAddress;
+        return Preferences.serverAddress(context);
+    }
+
+    public void setLearnedServerAddress(String addr) {
+        learnedServerAddress = addr;
+    }
+
+    public void clearLearnedServerAddress() {
+        learnedServerAddress = null;
     }
 
     public ConnectionState getCurrentState() {
@@ -77,24 +90,5 @@ public class ConnectionManager {
             this.serverAddress = serverAddress;
             listener.onConnectionStateChanged(newState, message, serverAddress);
         }
-    }
-
-    private static String getGatewayIpAddress(Context context) {
-        WifiManager wifiManager = context.getSystemService(WifiManager.class);
-        if (wifiManager == null) {
-            return null;
-        }
-        DhcpInfo dhcpInfo = wifiManager.getDhcpInfo();
-        if (dhcpInfo == null || dhcpInfo.gateway == 0) {
-            return null;
-        }
-        return intToIp(dhcpInfo.gateway);
-    }
-
-    private static String intToIp(int i) {
-        return (i & 0xFF) + "." +
-                ((i >> 8) & 0xFF) + "." +
-                ((i >> 16) & 0xFF) + "." +
-                ((i >> 24) & 0xFF);
     }
 }

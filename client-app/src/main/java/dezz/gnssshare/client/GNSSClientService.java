@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,6 +84,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final long HELLO_INTERVAL_MS = 1000;
     private static final long CONNECTED_TIMEOUT_MS = 3000;
+    private static final String BROADCAST_ADDR = "255.255.255.255";
     private final Runnable helloTick = this::sendHelloTick;
 
     private static final String WIDGET_SATELLITE_STATUS_ACTION = "dezz.gnssshare.action.SATELLITE_STATUS";
@@ -192,6 +194,11 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             return;
         }
         udpSocket = sock;
+        try {
+            sock.setBroadcast(true);
+        } catch (SocketException e) {
+            Log.w(TAG, "Failed to enable broadcast on socket", e);
+        }
         if (!running.get()) {
             // stopTransport() raced in during socket open — close and bail
             Log.i(TAG, "Transport stopped during socket open; closing");
@@ -200,7 +207,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             return;
         }
 
-        String server = connectionManager.resolveServerAddress();
+        String server = connectionManager.getSendTarget();
         connectionManager.setState(ConnectionManager.ConnectionState.CONNECTING, "Connecting to server...", server);
 
         if (!MockLocationManager.isMockLocationEnabled(getContentResolver())) {
@@ -236,6 +243,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         lastFixElapsedMs = 0;
         lastPredictElapsedMs = 0;
         kalman.reset();
+        connectionManager.clearLearnedServerAddress();
         lastBroadcastSatelliteCount = -1;
         broadcastSatelliteStatusToWidget(0);
 
@@ -254,28 +262,29 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         if (!running.get()) {
             return;
         }
-        String server = connectionManager.getServerAddress();
-        if (server == null) {
-            server = connectionManager.resolveServerAddress();
-        }
+        String target = connectionManager.getSendTarget(); // null in Auto mode until discovered
         final DatagramSocket sock = udpSocket;
-        if (server != null && sock != null) {
-            final String dest = server;
+        if (sock != null) {
+            final String dest = (target != null) ? target : BROADCAST_ADDR;
             executor.execute(() -> {
                 try {
                     byte[] hello = Protocol.buildPacket(Protocol.TYPE_HELLO, null);
                     sock.send(new DatagramPacket(hello, hello.length,
                             InetAddress.getByName(dest), Protocol.PORT));
                 } catch (IOException e) {
-                    Log.w(TAG, "Failed to send HELLO", e);
+                    Log.w(TAG, "Failed to send HELLO to " + dest, e);
                 }
             });
         }
-        // Recency check: drop to CONNECTING if no RESPONSE within the window.
+        // Recency check: drop to CONNECTING if no RESPONSE within the window; in Auto mode also
+        // forget the learned server so the next ticks broadcast to re-discover.
         if (connectionManager.isConnected()
                 && System.currentTimeMillis() - lastResponseTime > CONNECTED_TIMEOUT_MS) {
             connectionManager.setState(ConnectionManager.ConnectionState.CONNECTING,
                     "Waiting for server...", connectionManager.getServerAddress());
+            if (connectionManager.isAutoDiscover()) {
+                connectionManager.clearLearnedServerAddress();
+            }
         }
         mainHandler.postDelayed(helloTick, HELLO_INTERVAL_MS);
     }
@@ -328,9 +337,13 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
                             header.payloadOffset, header.payloadOffset + header.payloadLength));
 
             lastResponseTime = System.currentTimeMillis();
+            String srcAddr = packet.getAddress().getHostAddress();
+            if (connectionManager.isAutoDiscover()) {
+                connectionManager.setLearnedServerAddress(srcAddr);
+            }
             if (!connectionManager.isConnected()) {
                 connectionManager.setState(ConnectionManager.ConnectionState.CONNECTED,
-                        "Receiving from server", connectionManager.getServerAddress());
+                        "Receiving from server", srcAddr);
             }
 
             if (response.hasLocationUpdate()) {

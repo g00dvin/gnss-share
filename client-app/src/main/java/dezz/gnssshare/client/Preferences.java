@@ -22,7 +22,7 @@ import android.content.SharedPreferences;
 
 public class Preferences {
     private static final String PREF_IS_SERVICE_ENABLED = "isServiceEnabled";
-    private static final String PREF_USE_GATEWAY_IP = "useGatewayIp";
+    private static final String PREF_AUTO_DISCOVER = "autoDiscover";
     private static final String PREF_SERVER_ADDRESS = "serverAddress";
     private static final String PREF_STATIC_JITTER_ENABLED = "staticJitterEnabled";
     private static final String PREF_LAST_AUTOSTART_SOURCE = "lastAutostartSource";
@@ -38,12 +38,12 @@ public class Preferences {
         return getPrefs(context).getBoolean(PREF_IS_SERVICE_ENABLED, false);
     }
 
-    public static void setUseGatewayIp(Context context, boolean value) {
-        getPrefs(context).edit().putBoolean(PREF_USE_GATEWAY_IP, value).apply();
+    public static void setAutoDiscover(Context context, boolean value) {
+        getPrefs(context).edit().putBoolean(PREF_AUTO_DISCOVER, value).apply();
     }
 
-    public static boolean useGatewayIp(Context context) {
-        return getPrefs(context).getBoolean(PREF_USE_GATEWAY_IP, true);
+    public static boolean autoDiscover(Context context) {
+        return getPrefs(context).getBoolean(PREF_AUTO_DISCOVER, true);
     }
 
     public static void setServerAddress(Context context, String value) {
