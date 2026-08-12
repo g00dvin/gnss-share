@@ -176,6 +176,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         // Notify activity about connection status change
         sendBroadcast(new Intent("dezz.gnssshare.CONNECTION_CHANGED")
+                .setPackage(getPackageName())
                 .putExtra("state", state.toString())
                 .putExtra("serverAddress", serverAddress));
     }
@@ -255,6 +256,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         connectionManager.setState(ConnectionManager.ConnectionState.DISCONNECTED, reason, null);
         sendBroadcast(new Intent("dezz.gnssshare.CONNECTION_CHANGED")
+                .setPackage(getPackageName())
                 .putExtra("state", ConnectionManager.ConnectionState.DISCONNECTED.toString()));
     }
 
@@ -351,6 +353,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             } else {
                 Log.i(TAG, "Server status: " + response.getStatus());
                 Intent intent = new Intent("dezz.gnssshare.LOCATION_UPDATE");
+                intent.setPackage(getPackageName());
                 intent.putExtra("satellites", response.getSatellites());
                 sendBroadcast(intent);
             }
@@ -389,6 +392,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             intent.putExtra("satellites", response.getSatellites());
             intent.putExtra("provider", locationUpdate.getProvider());
             intent.putExtra("locationAge", locationUpdate.getLocationAge());
+            intent.setPackage(getPackageName());
             sendBroadcast(intent);
 
             // Feed the fix into the Kalman filter on the main thread; the smoothing loop
@@ -474,6 +478,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
     private void broadcastMockLocationStatus(String message, boolean error) {
         Intent intent = new Intent("dezz.gnssshare.MOCK_LOCATION_STATUS");
+        intent.setPackage(getPackageName());
         intent.putExtra("message", message);
         intent.putExtra("error", error);
         sendBroadcast(intent);
