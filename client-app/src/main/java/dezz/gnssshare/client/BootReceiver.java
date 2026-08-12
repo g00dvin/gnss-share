@@ -34,18 +34,26 @@ public class BootReceiver extends BroadcastReceiver {
                 || ACTION_QUICKBOOT_POWERON.equals(intent.getAction())) {
             Log.d(TAG, "Device boot completed, checking if GNSS client should auto-start");
 
-            // Check if service was previously enabled
-            if (GNSSClientService.isServiceEnabled(context)) {
-                if (GNSSClientService.isServiceRunning()) {
-                    Log.i(TAG, "GNSS client service is already running. Don't start it again.");
-                    return;
-                }
+            // Boot does not gate on WiFi, so pass wifiConnected=true.
+            AutostartPolicy.Decision decision = AutostartPolicy.decide(
+                    true,
+                    GNSSClientService.isServiceEnabled(context),
+                    GNSSClientService.isServiceRunning());
 
+            Preferences.setLastAutostart(context, "boot", decision.name());
+
+            if (decision == AutostartPolicy.Decision.START) {
                 Log.i(TAG, "Auto-starting GNSS client service");
                 Intent serviceIntent = new Intent(context, GNSSClientService.class);
                 context.startForegroundService(serviceIntent);
             } else {
-                Log.d(TAG, "GNSS client service not enabled for auto-start");
+                Log.d(TAG, "Not auto-starting GNSS client service: " + decision.name());
+            }
+
+            // Re-arm the persisted WiFi-connect autostart job (belt-and-suspenders; the job is
+            // itself persisted, but if it was ever lost this restores it on boot).
+            if (GNSSClientService.isServiceEnabled(context)) {
+                AutostartScheduler.schedule(context);
             }
         }
     }

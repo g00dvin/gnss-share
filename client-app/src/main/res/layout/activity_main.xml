@@ -215,10 +215,19 @@
                     android:id="@+id/serviceStatusText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="8dp"
                     android:text="@string/service_stopped"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/autostartDiagText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
 
                 <!-- Control Buttons -->
                 <LinearLayout

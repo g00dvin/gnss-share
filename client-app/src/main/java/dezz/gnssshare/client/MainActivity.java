@@ -30,6 +30,7 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -78,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
     private Button startServiceButton;
     private Button stopServiceButton;
     private TextView serviceStatusText;
+    private TextView autostartDiagText;
     private TextView serverIpEditLabel;
     private EditText serverIpEdit;
 
@@ -161,6 +163,12 @@ public class MainActivity extends AppCompatActivity {
         if (GNSSClientService.isServiceEnabled(this) && !GNSSClientService.isServiceRunning()) {
             startGNSSService();
         }
+
+        // Ensure the persisted WiFi-connect autostart job is armed whenever the service is enabled
+        // (idempotent; also covers the case where the service is already running).
+        if (GNSSClientService.isServiceEnabled(this)) {
+            AutostartScheduler.schedule(this);
+        }
     }
 
     @Override
@@ -191,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
         startServiceButton = findViewById(R.id.startServiceButton);
         stopServiceButton = findViewById(R.id.stopServiceButton);
         serviceStatusText = findViewById(R.id.serviceStatusText);
+        autostartDiagText = findViewById(R.id.autostartDiagText);
 
         // Initialize with default values
         updateConnectionStatus(GNSSClientService.getConnectionState(), GNSSClientService.getServerAddress());
@@ -254,6 +263,24 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialize service status
         updateServiceStatus(GNSSClientService.isServiceRunning());
+        updateAutostartDiag();
+    }
+
+    /** Shows the last recorded autostart trigger (survives reboot) to aid on-device diagnosis. */
+    private void updateAutostartDiag() {
+        String source = Preferences.lastAutostartSource(this);
+        if (source == null) {
+            autostartDiagText.setVisibility(View.GONE);
+            return;
+        }
+        String result = Preferences.lastAutostartResult(this);
+        long time = Preferences.lastAutostartTime(this);
+        CharSequence when = time > 0
+                ? DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(),
+                        DateUtils.MINUTE_IN_MILLIS)
+                : getString(R.string.unknown);
+        autostartDiagText.setText(String.format(getString(R.string.autostart_diag), source, result, when));
+        autostartDiagText.setVisibility(View.VISIBLE);
     }
 
     private void registerReceivers() {
@@ -275,12 +302,18 @@ public class MainActivity extends AppCompatActivity {
         // Update SharedPreferences immediately to reflect the intent to start
         Preferences.setServiceEnabled(this, true);
 
+        // Arm the persisted WiFi-connect autostart job.
+        AutostartScheduler.schedule(this);
+
         Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
     }
 
     private void stopGNSSService() {
         // Update SharedPreferences immediately to reflect the intent to stop
         Preferences.setServiceEnabled(this, false);
+
+        // Disarm the autostart job so it won't relaunch after a manual stop.
+        AutostartScheduler.cancel(this);
 
         Intent serviceIntent = new Intent(this, GNSSClientService.class);
         stopService(serviceIntent);
