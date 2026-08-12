@@ -377,17 +377,33 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             intent.putExtra("locationAge", locationUpdate.getLocationAge());
             sendBroadcast(intent);
 
-            // Feed the fix into the Kalman filter; the smoothing loop injects mock locations.
-            long nowElapsed = SystemClock.elapsedRealtime();
-            if (kalman.isInitialized() && lastPredictElapsedMs > 0) {
-                kalman.predict((nowElapsed - lastPredictElapsedMs) / 1000.0);
-            }
-            kalman.update(
-                    locationUpdate.getLatitude(), locationUpdate.getLongitude(), locationUpdate.getSpeed(), locationUpdate.getBearing(),
-                    locationUpdate.getAccuracy(), locationUpdate.getSpeedAccuracy(), locationUpdate.getBearingAccuracy());
-            lastAltitude = locationUpdate.getAltitude();
-            lastFixElapsedMs = nowElapsed;
-            lastPredictElapsedMs = nowElapsed;
+            // Feed the fix into the Kalman filter on the main thread; the smoothing loop
+            // (also main-thread) reads/predicts the same filter, so all access is confined
+            // to one thread and no synchronization is needed.
+            final double lat = locationUpdate.getLatitude();
+            final double lon = locationUpdate.getLongitude();
+            final float spd = locationUpdate.getSpeed();
+            final float brg = locationUpdate.getBearing();
+            final float acc = locationUpdate.getAccuracy();
+            final float spdAcc = locationUpdate.getSpeedAccuracy();
+            final float brgAcc = locationUpdate.getBearingAccuracy();
+            final double alt = locationUpdate.getAltitude();
+            mainHandler.post(() -> {
+                try {
+                    long nowElapsed = SystemClock.elapsedRealtime();
+                    if (kalman.isInitialized() && lastPredictElapsedMs > 0) {
+                        // Cap dt so a long GPS gap can't feed a huge predict step (bounds process-noise growth).
+                        double dt = Math.min((nowElapsed - lastPredictElapsedMs) / 1000.0, 5.0);
+                        kalman.predict(dt);
+                    }
+                    kalman.update(lat, lon, spd, brg, acc, spdAcc, brgAcc);
+                    lastAltitude = alt;
+                    lastFixElapsedMs = nowElapsed;
+                    lastPredictElapsedMs = nowElapsed;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error updating Kalman filter", e);
+                }
+            });
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception - mock location permission denied", e);
             broadcastMockLocationStatus(getString(R.string.mock_location_permission_denied), true);
