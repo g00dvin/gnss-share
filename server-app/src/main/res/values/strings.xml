@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync Server</string>
+    <string name="version_label">Version %s</string>
     <string name="app_description">LocSync location sharing server</string>
 
     <string name="notification_title">%s Running</string>

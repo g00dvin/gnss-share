@@ -34,4 +34,19 @@ jobs:
       run: ./gradlew testDebugUnitTest
 
     - name: Assemble debug APKs
-      run: ./gradlew assembleDebug
+      run: |
+        BRANCH="${{ github.head_ref || github.ref_name }}"
+        SHORT_SHA=$(git rev-parse --short=7 HEAD)
+        export BUILD_LABEL="${BRANCH}-${SHORT_SHA}"
+        echo "BUILD_LABEL=$BUILD_LABEL"
+        ./gradlew assembleDebug
+
+    - name: Upload debug APKs
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-apks
+        path: |
+          server-app/build/outputs/apk/debug/*.apk
+          client-app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
+        retention-days: 14
