@@ -30,6 +30,7 @@ import android.location.GnssStatus;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -122,6 +123,7 @@ public class GNSSServerService extends Service {
 
     private GnssStatus gnssStatus = null;
     private boolean isGnssActive = false;
+    private WifiManager.MulticastLock multicastLock;
 
     @Override
     public void onCreate() {
@@ -138,6 +140,18 @@ public class GNSSServerService extends Service {
 
         running = true;
         instance = this;
+
+        WifiManager wifi = getSystemService(WifiManager.class);
+        if (wifi != null) {
+            multicastLock = wifi.createMulticastLock("gnss-server");
+            multicastLock.setReferenceCounted(false);
+            try {
+                multicastLock.acquire();
+                Log.d(TAG, "MulticastLock acquired");
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to acquire MulticastLock", e);
+            }
+        }
     }
 
     @Override
@@ -163,6 +177,11 @@ public class GNSSServerService extends Service {
 
         notificationManager.cancel(NOTIFICATION_ID);
         notificationManager = null;
+
+        if (multicastLock != null && multicastLock.isHeld()) {
+            multicastLock.release();
+        }
+        multicastLock = null;
     }
 
     @Override
