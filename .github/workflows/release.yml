@@ -68,5 +68,5 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          client-app/build/outputs/apk/release/gnss-client-${{ steps.version.outputs.version }}.apk
-          server-app/build/outputs/apk/release/gnss-server-${{ steps.version.outputs.version }}.apk
+          client-app/build/outputs/apk/release/locsync-client-${{ steps.version.outputs.version }}.apk
+          server-app/build/outputs/apk/release/locsync-server-${{ steps.version.outputs.version }}.apk
