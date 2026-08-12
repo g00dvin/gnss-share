@@ -286,6 +286,15 @@
                     android:text="@string/static_jitter"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
+
+                <CheckBox
+                    android:id="@+id/debugLoggingCheckbox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/debug_logging"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
             </LinearLayout>
 
             <!-- Location Information Card -->

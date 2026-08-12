@@ -37,6 +37,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -122,6 +123,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     public void onCreate() {
         super.onCreate();
 
+        AppLog.setDebug(Preferences.debugLoggingEnabled(this));
         notificationManager = getSystemService(NotificationManager.class);
         mockLocationManager = new MockLocationManager(this);
         connectionManager = new ConnectionManager(this, this);
@@ -170,7 +172,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     // ConnectionManager.ConnectionListener implementation
     @Override
     public void onConnectionStateChanged(ConnectionManager.ConnectionState state, String message, String serverAddress) {
-        Log.d(TAG, "Connection state: " + state + " - " + message);
+        AppLog.d(TAG, "Connection state: " + state + " - " + message);
 
         updateNotification();
 
@@ -202,7 +204,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         }
         if (!running.get()) {
             // stopTransport() raced in during socket open — close and bail
-            Log.i(TAG, "Transport stopped during socket open; closing");
+            AppLog.i(TAG, "Transport stopped during socket open; closing");
             sock.close();
             udpSocket = null;
             return;
@@ -234,7 +236,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         if (!running.getAndSet(false)) {
             return;
         }
-        Log.i(TAG, "Stopping transport: " + reason);
+        AppLog.i(TAG, "Stopping transport: " + reason);
         mainHandler.removeCallbacks(helloTick);
         mainHandler.removeCallbacks(smoothingTick);
         if (udpSocket != null) {
@@ -304,7 +306,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
                 handlePacket(packet);
             } catch (IOException e) {
                 if (running.get() && !sock.isClosed()) {
-                    Log.v(TAG, "UDP receive error: " + e.getMessage());
+                    AppLog.v(TAG, "UDP receive error: " + e.getMessage());
                     try {
                         Thread.sleep(200);   // avoid hot-spin on repeated errors
                     } catch (InterruptedException ie) {
@@ -351,7 +353,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             if (response.hasLocationUpdate()) {
                 handleLocationUpdate(response);
             } else {
-                Log.i(TAG, "Server status: " + response.getStatus());
+                AppLog.i(TAG, "Server status: " + response.getStatus());
                 Intent intent = new Intent("goodvin.locsync.LOCATION_UPDATE");
                 intent.setPackage(getPackageName());
                 intent.putExtra("satellites", response.getSatellites());
@@ -377,7 +379,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             location.setBearing(locationUpdate.getBearing());
             location.setSpeed(locationUpdate.getSpeed());
 
-            Log.i(TAG, "Received location update: " + location);
+            AppLog.i(TAG, "Received location update: " + location);
 
             // Update internal state
             lastReceivedLocation = location;

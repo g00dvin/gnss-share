@@ -34,6 +34,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -152,6 +153,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         appVersion = VersionGetter.getAppVersionName(this);
+        AppLog.setDebug(Preferences.debugLoggingEnabled(this));
 
         initializeViews();
         registerReceivers();
@@ -265,6 +267,13 @@ public class MainActivity extends AppCompatActivity {
         staticJitterCheckbox.setChecked(Preferences.staticJitterEnabled(this));
         staticJitterCheckbox.setOnCheckedChangeListener((buttonView, isChecked) ->
                 Preferences.setStaticJitterEnabled(this, isChecked));
+
+        CheckBox debugLoggingCheckbox = findViewById(R.id.debugLoggingCheckbox);
+        debugLoggingCheckbox.setChecked(Preferences.debugLoggingEnabled(this));
+        debugLoggingCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Preferences.setDebugLoggingEnabled(this, isChecked);
+            AppLog.setDebug(isChecked);
+        });
 
         // Set up server IP edit text change listener
         serverIpEdit.addTextChangedListener(new TextWatcher() {

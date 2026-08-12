@@ -36,6 +36,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -87,12 +88,12 @@ public class GNSSServerService extends Service {
 
         @Override
         public void onProviderEnabled(@NonNull String provider) {
-            Log.d(TAG, "Provider enabled: " + provider);
+            AppLog.d(TAG, "Provider enabled: " + provider);
         }
 
         @Override
         public void onProviderDisabled(@NonNull String provider) {
-            Log.d(TAG, "Provider disabled: " + provider);
+            AppLog.d(TAG, "Provider disabled: " + provider);
         }
     };
 
@@ -127,6 +128,7 @@ public class GNSSServerService extends Service {
 
     @Override
     public void onCreate() {
+        AppLog.setDebug(Preferences.debugLoggingEnabled(this));
         notificationManager = getSystemService(NotificationManager.class);
 
         createNotificationChannel();
@@ -147,7 +149,7 @@ public class GNSSServerService extends Service {
             multicastLock.setReferenceCounted(false);
             try {
                 multicastLock.acquire();
-                Log.d(TAG, "MulticastLock acquired");
+                AppLog.d(TAG, "MulticastLock acquired");
             } catch (Exception e) {
                 Log.w(TAG, "Failed to acquire MulticastLock", e);
             }
@@ -199,7 +201,7 @@ public class GNSSServerService extends Service {
         try {
             locationManager.registerGnssStatusCallback(gnssStatusCallback, mainHandler);
 
-            Log.d(TAG, "GNSS status callback registered");
+            AppLog.d(TAG, "GNSS status callback registered");
         } catch (SecurityException e) {
             Log.e(TAG, "Failed to register GNSS status callback", e);
         }
@@ -251,12 +253,12 @@ public class GNSSServerService extends Service {
             // the port again would throw BindException and the catch below would tear down the
             // live socket. If we're already running, do nothing.
             if (udpSocket != null && !udpSocket.isClosed()) {
-                Log.d(TAG, "UDP server already running; ignoring start request");
+                AppLog.d(TAG, "UDP server already running; ignoring start request");
                 return;
             }
             try {
                 udpSocket = new DatagramSocket(Protocol.PORT);
-                Log.d(TAG, "UDP server bound on port " + Protocol.PORT);
+                AppLog.d(TAG, "UDP server bound on port " + Protocol.PORT);
             } catch (Throwable e) {
                 Log.e(TAG, "Error starting UDP server", e);
                 serverStartError = e.getMessage();
@@ -302,7 +304,7 @@ public class GNSSServerService extends Service {
             clientAddr = packet.getSocketAddress();
             lastHeard = System.currentTimeMillis();
             if (isNewClient) {
-                Log.i(TAG, "Client present: " + clientAddr);
+                AppLog.i(TAG, "Client present: " + clientAddr);
                 mainHandler.post(this::startLocationUpdates);
                 cancelBluetoothAutoStop();
                 mainHandler.post(() -> updateNotification("Client connected"));
@@ -324,7 +326,7 @@ public class GNSSServerService extends Service {
     }
 
     private void stopServer() {
-        Log.d(TAG, "Stopping UDP server");
+        AppLog.d(TAG, "Stopping UDP server");
         mainHandler.removeCallbacks(keepaliveRunnable);
         clientAddr = null;
         if (udpSocket != null) {
@@ -341,7 +343,7 @@ public class GNSSServerService extends Service {
         initializeFusedLocationProviderClient();
 
         try {
-            Log.d(TAG, "Starting location updates...");
+            AppLog.d(TAG, "Starting location updates...");
 
             lastServerResponse.setStatus(LocationProto.Status.AWAITING_LOCATION);
 
@@ -364,7 +366,7 @@ public class GNSSServerService extends Service {
                 );
             }
 
-            Log.d(TAG, "Location updates started");
+            AppLog.d(TAG, "Location updates started");
 
             isGnssActive = true;
 
@@ -382,7 +384,7 @@ public class GNSSServerService extends Service {
             return;
         }
 
-        Log.d(TAG, "Stopping location updates...");
+        AppLog.d(TAG, "Stopping location updates...");
 
         if (locationManager != null) {
             locationManager.removeUpdates(locationListener);
@@ -395,7 +397,7 @@ public class GNSSServerService extends Service {
             fusedLocationProviderClient = null;
         }
 
-        Log.d(TAG, "Location updates stopped");
+        AppLog.d(TAG, "Location updates stopped");
 
         isGnssActive = false;
         lastServerResponse.setStatus(LocationProto.Status.LOCATION_STOPPED);
@@ -404,7 +406,7 @@ public class GNSSServerService extends Service {
     }
 
     private void handleLocationUpdate(Location location) {
-        Log.d(TAG, String.format("Handling location update: %s", location));
+        AppLog.d(TAG, String.format("Handling location update: %s", location));
 
         // Create protobuf message
         LocationProto.LocationUpdate.Builder builder = LocationProto.LocationUpdate.newBuilder()
@@ -439,7 +441,7 @@ public class GNSSServerService extends Service {
         updateNotification("Received location update");
 
         // Broadcast to the connected client
-        Log.d(TAG, "Broadcasting location: " + location);
+        AppLog.d(TAG, "Broadcasting location: " + location);
         executor.execute(() -> broadcastLocationUpdate(lastServerResponse.build()));
     }
 
@@ -456,7 +458,7 @@ public class GNSSServerService extends Service {
         if (dest != null) {
             long silence = System.currentTimeMillis() - lastHeard;
             if (silence > CLIENT_TIMEOUT_MS) {
-                Log.i(TAG, "Client timed out (" + silence + "ms), marking gone");
+                AppLog.i(TAG, "Client timed out (" + silence + "ms), marking gone");
                 if (clientAddr == dest) {          // still the same client we timed out
                     clientAddr = null;
                     onClientGone();
@@ -473,7 +475,7 @@ public class GNSSServerService extends Service {
     }
 
     private void onClientGone() {
-        Log.d(TAG, "No client; scheduling stop of location updates in 15 seconds");
+        AppLog.d(TAG, "No client; scheduling stop of location updates in 15 seconds");
         mainHandler.removeCallbacks(this.stopLocationUpdates);
         mainHandler.postDelayed(this.stopLocationUpdates, 15000);
         evaluateAutoStop();
@@ -566,7 +568,7 @@ public class GNSSServerService extends Service {
         if (notificationManager == null) {
             return;
         }
-        Log.d(TAG, "Updating notification: " + reason);
+        AppLog.d(TAG, "Updating notification: " + reason);
         notificationManager.notify(NOTIFICATION_ID, createNotification());
     }
 
@@ -613,7 +615,7 @@ public class GNSSServerService extends Service {
 
         // Only auto-stop if BT auto-start/stop feature is enabled in preferences
         if (!Preferences.bluetoothAutoStartEnabled(this)) {
-            Log.d(TAG, "BT auto-start/stop disabled in preferences, skipping auto-stop evaluation");
+            AppLog.d(TAG, "BT auto-start/stop disabled in preferences, skipping auto-stop evaluation");
             return;
         }
 
@@ -621,16 +623,16 @@ public class GNSSServerService extends Service {
         boolean clientsGone = (clientAddr == null);
 
         if (btGone && clientsGone) {
-            Log.d(TAG, "All BT devices and clients disconnected, scheduling auto-stop in " + BT_AUTO_STOP_DELAY_MS + "ms");
+            AppLog.d(TAG, "All BT devices and clients disconnected, scheduling auto-stop in " + BT_AUTO_STOP_DELAY_MS + "ms");
             mainHandler.removeCallbacks(btAutoStopRunnable);
             mainHandler.postDelayed(btAutoStopRunnable, BT_AUTO_STOP_DELAY_MS);
         } else {
-            Log.d(TAG, "Auto-stop not needed (BT connected: " + !btGone + ", clients connected: " + !clientsGone + ")");
+            AppLog.d(TAG, "Auto-stop not needed (BT connected: " + !btGone + ", clients connected: " + !clientsGone + ")");
         }
     }
 
     private void cancelBluetoothAutoStop() {
-        Log.d(TAG, "Cancelling Bluetooth auto-stop");
+        AppLog.d(TAG, "Cancelling Bluetooth auto-stop");
         mainHandler.removeCallbacks(btAutoStopRunnable);
     }
 
@@ -639,10 +641,10 @@ public class GNSSServerService extends Service {
         boolean btGone = BluetoothReceiver.allTriggerDevicesDisconnected();
         boolean clientsGone = (clientAddr == null);
         if (!btGone || !clientsGone) {
-            Log.i(TAG, "Bluetooth auto-stop skipped (BT connected: " + !btGone + ", clients connected: " + !clientsGone + ")");
+            AppLog.i(TAG, "Bluetooth auto-stop skipped (BT connected: " + !btGone + ", clients connected: " + !clientsGone + ")");
             return;
         }
-        Log.i(TAG, "Bluetooth auto-stop triggered - stopping service");
+        AppLog.i(TAG, "Bluetooth auto-stop triggered - stopping service");
         setServiceEnabled(this, false);
         stopSelf();
     }

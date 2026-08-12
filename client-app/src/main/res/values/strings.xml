@@ -17,6 +17,7 @@
 
 <resources>
     <string name="app_name">LocSync Client</string>
+    <string name="debug_logging">Debug logging (verbose)</string>
     <string name="version_label">Version %s</string>
     <string name="mock_app_not_selected">⚠ Not set as the mock location app. Tap here → Developer Options → Select mock location app → LocSync Client.</string>
     <string name="connection_status_title">Connection Status</string>

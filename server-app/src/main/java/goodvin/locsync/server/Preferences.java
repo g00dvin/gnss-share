@@ -130,6 +130,16 @@ public class Preferences {
         return getPrefs(context).getBoolean(PREF_FUSED_LOCATION_ENABLED, true);
     }
 
+    private static final String PREF_DEBUG_LOGGING = "debugLoggingEnabled";
+
+    public static void setDebugLoggingEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(PREF_DEBUG_LOGGING, enabled).apply();
+    }
+
+    public static boolean debugLoggingEnabled(Context context) {
+        return getPrefs(context).getBoolean(PREF_DEBUG_LOGGING, false);
+    }
+
     private static SharedPreferences getPrefs(Context context) {
         return context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
     }

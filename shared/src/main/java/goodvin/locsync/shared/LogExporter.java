@@ -73,7 +73,7 @@ public class LogExporter {
                 return null;
             }
 
-            Log.d(TAG, "Logs exported to: " + logFile.getAbsolutePath());
+            AppLog.d(TAG, "Logs exported to: " + logFile.getAbsolutePath());
             return logFile;
         } catch (IOException | InterruptedException e) {
             Log.e(TAG, "Error exporting logs", e);
@@ -91,12 +91,12 @@ public class LogExporter {
             File logDir = getLogDir(context);
 
             if (logDir.mkdirs()) {
-                Log.d(TAG, "Created new log directory: " + logDir.getAbsolutePath());
+                AppLog.d(TAG, "Created new log directory: " + logDir.getAbsolutePath());
             }
 
             File logFile = new File(logDir, fileName);
             if (logFile.createNewFile()) {
-                Log.d(TAG, "Created log file: " + logFile.getAbsolutePath());
+                AppLog.d(TAG, "Created log file: " + logFile.getAbsolutePath());
             }
             return logFile;
         } catch (IOException e) {
@@ -133,7 +133,7 @@ public class LogExporter {
                 File logFile = logFiles[i];
                 String path = logFile.getAbsolutePath();
                 if (logFile.delete()) {
-                    Log.d(TAG, "Deleted old log file: " + path);
+                    AppLog.d(TAG, "Deleted old log file: " + path);
                 } else {
                     Log.w(TAG, "Failed to delete old log file: " + path);
                 }

@@ -25,6 +25,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.util.Log;
+import goodvin.locsync.shared.AppLog;
 
 import androidx.core.content.ContextCompat;
 
@@ -46,11 +47,11 @@ public class AutostartJobService extends JobService {
         AutostartPolicy.Decision decision =
                 AutostartPolicy.decide(wifiConnected, serviceEnabled, serviceRunning);
         Preferences.setLastAutostart(this, "wifi_job", decision.name());
-        Log.d(TAG, "Network job fired: " + decision.name()
+        AppLog.d(TAG, "Network job fired: " + decision.name()
                 + " (wifi=" + wifiConnected + ", enabled=" + serviceEnabled + ", running=" + serviceRunning + ")");
 
         if (decision == AutostartPolicy.Decision.START) {
-            Log.i(TAG, "Auto-starting GNSS client service from network job");
+            AppLog.i(TAG, "Auto-starting GNSS client service from network job");
             ContextCompat.startForegroundService(this, new Intent(this, GNSSClientService.class));
         }
 
