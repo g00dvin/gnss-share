@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
+  ~ Copyright © 2026 Dezz (https://github.com/DezzK)
   ~
   ~ This program is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU General Public License as published by
@@ -16,14 +15,14 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<resources>
-    <color name="error_red">#f44336</color>
-    <color name="ic_launcher_background">#0E7C5B</color>
-
-    <!-- Theme-aware colors for layouts -->
-    <color name="background">#F5F5F5</color>
-    <color name="card_background">@android:color/white</color>
-    <color name="header_background">#E0E0E0</color>
-    <color name="text_primary">@android:color/black</color>
-    <color name="text_secondary">#666666</color>
-</resources>
+<!-- LocSync "route pin": location pin with a road carved out (negative space). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <path
+      android:fillColor="#FFFFFF"
+      android:fillType="evenOdd"
+      android:pathData="M54,24 C66.7,24 77,34.3 77,47 C77,62 65,72 54,86 C43,72 31,62 31,47 C31,34.3 41.3,24 54,24 Z M50,37 L58,37 C60,46 63.5,54 67,62 L41,62 C44.5,54 48,46 50,37 Z"/>
+</vector>

@@ -16,8 +16,8 @@
   -->
 
 <resources>
-    <string name="app_name">GNSS Server</string>
-    <string name="app_description">GNSS location sharing server</string>
+    <string name="app_name">LocSync Server</string>
+    <string name="app_description">LocSync location sharing server</string>
 
     <string name="notification_title">%s Running</string>
     <string name="notification_failed_title">%s Failed to Run</string>

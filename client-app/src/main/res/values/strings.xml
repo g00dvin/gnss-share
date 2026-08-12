@@ -16,7 +16,7 @@
   -->
 
 <resources>
-    <string name="app_name">GNSS Client</string>
+    <string name="app_name">LocSync Client</string>
     <string name="connection_status_title">Connection Status</string>
     <string name="connected">Connected</string>
     <string name="connecting">Connecting…</string>
