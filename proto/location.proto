@@ -6,9 +6,16 @@ option java_package = "dezz.gnssshare.proto";
 option java_outer_classname = "LocationProto";
 
 message ServerResponse {
-    string status = 1;
+    Status status = 1;
     int32 satellites = 2;
     optional LocationUpdate location_update = 3;
+}
+
+enum Status {
+    UNINITIALIZED = 0;
+    AWAITING_LOCATION = 1;
+    TRANSMITTING_LOCATION = 2;
+    LOCATION_STOPPED = 3;
 }
 
 message LocationUpdate {

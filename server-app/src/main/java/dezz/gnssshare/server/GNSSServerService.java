@@ -56,7 +56,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import dezz.gnssshare.proto.LocationProto;
-import dezz.gnssshare.shared.ServerStatus;
 
 public class GNSSServerService extends Service {
     private static final String TAG = "GNSSServerService";
@@ -110,7 +109,7 @@ public class GNSSServerService extends Service {
     };
 
     private final LocationProto.ServerResponse.Builder lastServerResponse = LocationProto.ServerResponse.newBuilder()
-            .setStatus(ServerStatus.UNINITIALIZED.name());
+            .setStatus(LocationProto.Status.UNINITIALIZED);
 
     // We need to use such runnable to make scheduled stopping cancelable
     private final Runnable stopLocationUpdates = this::stopLocationUpdates;
@@ -297,7 +296,7 @@ public class GNSSServerService extends Service {
         try {
             Log.d(TAG, "Starting location updates...");
 
-            lastServerResponse.setStatus(ServerStatus.AWAITING_LOCATION.name());
+            lastServerResponse.setStatus(LocationProto.Status.AWAITING_LOCATION);
 
             final int MIN_INTERVAL_MS = 500;
             final int MIN_DISTANCE_M = 0;
@@ -352,7 +351,7 @@ public class GNSSServerService extends Service {
         Log.d(TAG, "Location updates stopped");
 
         isGnssActive = false;
-        lastServerResponse.setStatus(ServerStatus.LOCATION_STOPPED.name());
+        lastServerResponse.setStatus(LocationProto.Status.LOCATION_STOPPED);
 
         updateNotification("Stopped location updates");
     }
@@ -381,7 +380,7 @@ public class GNSSServerService extends Service {
             builder.setSpeed(location.getSpeed());
         }
 
-        lastServerResponse.setStatus(ServerStatus.TRANSMITTING_LOCATION.name())
+        lastServerResponse.setStatus(LocationProto.Status.TRANSMITTING_LOCATION)
                 .setLocationUpdate(builder.build());
 
         updateNotification("Received location update");
