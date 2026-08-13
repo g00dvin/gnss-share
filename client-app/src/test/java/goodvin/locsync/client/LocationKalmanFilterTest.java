@@ -87,6 +87,23 @@ public class LocationKalmanFilterTest {
         assertEquals(31.0, f.getLongitude(), 1e-6);
     }
 
+    // Regression lock for the covariance-propagation refactor: predict must advance position by
+    // velocity*dt exactly, leave velocity untouched, and inflate positional uncertainty (process noise).
+    @Test
+    public void predictAdvancesPositionAndInflatesUncertainty() {
+        LocationKalmanFilter f = newFilter();
+        f.update(59.0, 30.0, 10.0, 90.0, 5.0, 1.0, 5.0); // heading east at 10 m/s
+        double acc0 = f.getAccuracy();
+        double lat0 = f.getLatitude();
+        double lon0 = f.getLongitude();
+        f.predict(2.0);
+        double expDLon = 20.0 / (111320.0 * Math.cos(Math.toRadians(59.0))); // 10 m/s * 2s east
+        assertEquals(lon0 + expDLon, f.getLongitude(), 1e-6);
+        assertEquals(lat0, f.getLatitude(), 1e-6);
+        assertEquals(10.0, f.getSpeed(), 1e-6);
+        assertTrue("uncertainty grows " + acc0 + " -> " + f.getAccuracy(), f.getAccuracy() > acc0);
+    }
+
     @Test
     public void predictAdvancesAlongVelocity() {
         LocationKalmanFilter f = newFilter();

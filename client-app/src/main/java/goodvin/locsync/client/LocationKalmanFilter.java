@@ -41,6 +41,8 @@ public class LocationKalmanFilter {
     private double e, n, ve, vn;
     // covariance (4x4)
     private final double[][] P = new double[4][4];
+    // reused scratch for the predict step's F*P product (avoids per-call allocation at 10 Hz)
+    private final double[][] scratchFP = new double[4][4];
 
     public LocationKalmanFilter(double sigmaA, double defaultSpeedSigma) {
         this.sigmaA = sigmaA;
@@ -123,29 +125,34 @@ public class LocationKalmanFilter {
         if (!initialized || dt <= 0) {
             return;
         }
-        // x = F x
+        // x = F x  (constant-velocity: position advances by velocity)
         e += ve * dt;
         n += vn * dt;
-        // P = F P F^T + Q, F = [[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]]
-        double[][] F = {
-                {1, 0, dt, 0},
-                {0, 1, 0, dt},
-                {0, 0, 1, 0},
-                {0, 0, 0, 1},
-        };
-        double[][] FP = mul(F, P);
-        double[][] newP = mul(FP, transpose(F));
+        // P = F P F^T + Q with F = [[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]], computed in place with a
+        // single reused scratch buffer — no per-call matrix allocation (this runs at 10 Hz).
+        double[][] S = scratchFP;
+        // S = F P: rows 0,1 gain dt * their velocity row; rows 2,3 unchanged.
+        for (int j = 0; j < 4; j++) {
+            S[0][j] = P[0][j] + dt * P[2][j];
+            S[1][j] = P[1][j] + dt * P[3][j];
+            S[2][j] = P[2][j];
+            S[3][j] = P[3][j];
+        }
+        // P = S F^T: columns 0,1 gain dt * their velocity column; columns 2,3 unchanged.
+        for (int i = 0; i < 4; i++) {
+            P[i][0] = S[i][0] + dt * S[i][2];
+            P[i][1] = S[i][1] + dt * S[i][3];
+            P[i][2] = S[i][2];
+            P[i][3] = S[i][3];
+        }
         // process noise Q
         double s2 = sigmaA * sigmaA;
         double dt2 = dt * dt, dt3 = dt2 * dt, dt4 = dt3 * dt;
         double q_pp = dt4 / 4.0, q_pv = dt3 / 2.0, q_vv = dt2;
-        newP[0][0] += s2 * q_pp; newP[0][2] += s2 * q_pv;
-        newP[2][0] += s2 * q_pv; newP[2][2] += s2 * q_vv;
-        newP[1][1] += s2 * q_pp; newP[1][3] += s2 * q_pv;
-        newP[3][1] += s2 * q_pv; newP[3][3] += s2 * q_vv;
-        for (int i = 0; i < 4; i++) {
-            System.arraycopy(newP[i], 0, P[i], 0, 4);
-        }
+        P[0][0] += s2 * q_pp; P[0][2] += s2 * q_pv;
+        P[2][0] += s2 * q_pv; P[2][2] += s2 * q_vv;
+        P[1][1] += s2 * q_pp; P[1][3] += s2 * q_pv;
+        P[3][1] += s2 * q_pv; P[3][3] += s2 * q_vv;
     }
 
     // Sequential scalar Kalman update for measurement of state component `idx` (H row = unit vector).
@@ -231,31 +238,6 @@ public class LocationKalmanFilter {
 
     public double getVn() {
         return vn;
-    }
-
-    // --- tiny 4x4 helpers ---
-    private static double[][] mul(double[][] a, double[][] b) {
-        double[][] c = new double[4][4];
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                double s = 0;
-                for (int k = 0; k < 4; k++) {
-                    s += a[i][k] * b[k][j];
-                }
-                c[i][j] = s;
-            }
-        }
-        return c;
-    }
-
-    private static double[][] transpose(double[][] a) {
-        double[][] t = new double[4][4];
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                t[j][i] = a[i][j];
-            }
-        }
-        return t;
     }
 
     private static void zero(double[][] a) {
