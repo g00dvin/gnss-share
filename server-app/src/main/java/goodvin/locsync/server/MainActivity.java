@@ -173,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
         applyWindowInsets();
         initializeViews();
 
-        registerReceiver(metricsReceiver, new IntentFilter("goodvin.locsync.METRICS"), RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(this, metricsReceiver, new IntentFilter("goodvin.locsync.METRICS"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
         if (GNSSServerService.isServiceEnabled(this) && !GNSSServerService.isServiceRunning()) {
             startGNSSService();
