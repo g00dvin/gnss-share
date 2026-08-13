@@ -400,7 +400,9 @@ public class GNSSServerService extends Service {
 
             lastServerResponse.setStatus(LocationProto.Status.AWAITING_LOCATION);
 
-            final int MIN_INTERVAL_MS = 200;
+            // The fused/GPS chip delivers ~1 fix/s in practice (measured), and the client re-smooths to
+            // 10 Hz regardless — so requesting 5 Hz (200 ms) only burned battery for fixes that never came.
+            final int MIN_INTERVAL_MS = 1000;
             final int MIN_DISTANCE_M = 0;
             if (fusedLocationProviderClient != null) {
                 LocationRequest request = new LocationRequest.Builder(MIN_INTERVAL_MS)
