@@ -110,7 +110,7 @@ public class GNSSServerService extends Service {
     private final Metrics metrics = new Metrics();
     private SystemStatsReader statsReader;
     private MetricsCsvWriter csvWriter;
-    private boolean metricsPrimed = false;
+    private volatile boolean metricsPrimed = false;
     private static final long METRICS_INTERVAL_MS = 1000;
     private static final String METRICS_TAG = "METRICS";
     private final Runnable metricsTick = this::sampleMetrics;
