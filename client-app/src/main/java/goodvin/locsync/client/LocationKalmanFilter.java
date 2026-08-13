@@ -29,6 +29,7 @@ public class LocationKalmanFilter {
     private static final double M_PER_DEG_LAT = 111320.0;
     private static final double REANCHOR_M = 10_000.0;
     private static final double MIN_POS_SIGMA = 1.0;
+    private static final double UNKNOWN_VEL_SIGMA = 50.0; // wide prior when speed is unknown (m/s)
 
     private final double sigmaA;            // process acceleration noise (m/s^2)
     private final double defaultSpeedSigma; // fallback velocity measurement noise (m/s)
@@ -55,22 +56,48 @@ public class LocationKalmanFilter {
         initialized = false;
     }
 
+    /** Full-measurement update. Treats speed and bearing as always present (backward-compatible). */
     public void update(double lat, double lon, double speed, double bearingDeg,
                        double accuracy, double speedAccuracy, double bearingAccuracyDeg) {
+        update(lat, lon, speed, bearingDeg, accuracy, speedAccuracy, bearingAccuracyDeg, true, true);
+    }
+
+    /**
+     * @param hasSpeed   whether {@code speed} is a real measurement. When the provider reports no
+     *                   speed (e.g. GPS lost in a tunnel) this must be false — otherwise a spurious
+     *                   speed=0 would be applied as a confident zero-velocity measurement, pinning
+     *                   the estimate and freezing the smoothed position. When speed or bearing is
+     *                   absent the velocity measurement is skipped entirely and velocity is inferred
+     *                   from position motion instead.
+     * @param hasBearing whether {@code bearingDeg} is a real measurement.
+     */
+    public void update(double lat, double lon, double speed, double bearingDeg,
+                       double accuracy, double speedAccuracy, double bearingAccuracyDeg,
+                       boolean hasSpeed, boolean hasBearing) {
+        boolean applyVel = hasSpeed && hasBearing;
         if (!initialized) {
             setAnchor(lat, lon);
             e = 0;
             n = 0;
-            double br = Math.toRadians(bearingDeg);
-            ve = speed * Math.sin(br);
-            vn = speed * Math.cos(br);
             double sp = posSigma(accuracy);
-            double sv = velSigma(speed, speedAccuracy, bearingAccuracyDeg);
             zero(P);
             P[0][0] = sp * sp;
             P[1][1] = sp * sp;
-            P[2][2] = sv * sv;
-            P[3][3] = sv * sv;
+            if (applyVel) {
+                double br = Math.toRadians(bearingDeg);
+                ve = speed * Math.sin(br);
+                vn = speed * Math.cos(br);
+                double sv = velSigma(speed, speedAccuracy, bearingAccuracyDeg);
+                P[2][2] = sv * sv;
+                P[3][3] = sv * sv;
+            } else {
+                // Velocity unknown: start at zero but with a wide prior so subsequent position
+                // motion — not a fake speed=0 — establishes it.
+                ve = 0;
+                vn = 0;
+                P[2][2] = UNKNOWN_VEL_SIGMA * UNKNOWN_VEL_SIGMA;
+                P[3][3] = UNKNOWN_VEL_SIGMA * UNKNOWN_VEL_SIGMA;
+            }
             initialized = true;
             return;
         }
@@ -78,16 +105,17 @@ public class LocationKalmanFilter {
         maybeReanchor(lat, lon);
         double em = (lon - lon0) * mPerDegLon;
         double nm = (lat - lat0) * M_PER_DEG_LAT;
-        double br = Math.toRadians(bearingDeg);
-        double vem = speed * Math.sin(br);
-        double vnm = speed * Math.cos(br);
         double sp = posSigma(accuracy);
-        double sv = velSigma(speed, speedAccuracy, bearingAccuracyDeg);
+        scalarUpdate(0, em, sp * sp);
+        scalarUpdate(1, nm, sp * sp);
 
-        double[] z = {em, nm, vem, vnm};
-        double[] r = {sp * sp, sp * sp, sv * sv, sv * sv};
-        for (int i = 0; i < 4; i++) {
-            scalarUpdate(i, z[i], r[i]);
+        if (applyVel) {
+            double br = Math.toRadians(bearingDeg);
+            double vem = speed * Math.sin(br);
+            double vnm = speed * Math.cos(br);
+            double sv = velSigma(speed, speedAccuracy, bearingAccuracyDeg);
+            scalarUpdate(2, vem, sv * sv);
+            scalarUpdate(3, vnm, sv * sv);
         }
     }
 
