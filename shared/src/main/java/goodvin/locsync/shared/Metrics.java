@@ -31,6 +31,7 @@ import java.util.List;
  */
 public final class Metrics {
     private static final double JIFFIES_PER_SEC = 100.0;
+    private static final int MAX_SAMPLES = 4096;
 
     private final Object lock = new Object();
 
@@ -67,11 +68,16 @@ public final class Metrics {
     }
 
     public void recordFixAgeMs(double ageMs) {
-        synchronized (lock) { ages.add(ageMs); }
+        synchronized (lock) { if (ages.size() < MAX_SAMPLES) ages.add(ageMs); }
     }
 
     public void recordTickJitterMs(double jitterMs) {
-        synchronized (lock) { jitters.add(jitterMs); }
+        synchronized (lock) { if (jitters.size() < MAX_SAMPLES) jitters.add(jitterMs); }
+    }
+
+    /** Visible for testing: total pending (unsnapshotted) sample count, to assert the cap holds. */
+    int sampleBacklog() {
+        synchronized (lock) { return ages.size() + jitters.size(); }
     }
 
     /** Compute the snapshot for the window since the previous call; resets per-window state. */

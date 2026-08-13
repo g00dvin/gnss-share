@@ -117,4 +117,26 @@ public class MetricsTest {
         int rowCols = s.toCsvRow("2026-08-13T00:00:00", 1).split(",", -1).length;
         assertEquals(headerCols, rowCols);
     }
+
+    @Test
+    public void sampleListsAreBoundedWithoutSnapshot() {
+        Metrics m = new Metrics();
+        // no snapshot() call — simulates metrics toggle OFF while record* is still called at ~10 Hz
+        for (int i = 0; i < 20000; i++) {
+            m.recordFixAgeMs(5.0);
+            m.recordTickJitterMs(5.0);
+        }
+        assertTrue(m.sampleBacklog() <= 2 * 4096);
+    }
+
+    @Test
+    public void cappedListsStillProduceCorrectMeanAfterSnapshot() {
+        Metrics m = new Metrics();
+        m.snapshot(stats(1000, 100, 10, 5, 0, 900, -50000)); // prime prev
+        m.recordFixAgeMs(10.0);
+        m.recordFixAgeMs(20.0);
+        m.recordFixAgeMs(30.0);
+        MetricsSnapshot s = m.snapshot(stats(2000, 100, 10, 5, 0, 900, -50000));
+        assertEquals(20.0, s.ageMeanMs, 0.0001);
+    }
 }
