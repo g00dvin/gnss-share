@@ -22,7 +22,10 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -65,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 
 import goodvin.locsync.shared.LogExporter;
+import goodvin.locsync.shared.MetricsCsvWriter;
 import goodvin.locsync.shared.VersionGetter;
 
 public class MainActivity extends AppCompatActivity {
@@ -149,6 +153,16 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private final BroadcastReceiver metricsReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("goodvin.locsync.METRICS".equals(intent.getAction())) {
+                TextView panel = findViewById(R.id.metricsPanelText);
+                if (panel != null) panel.setText(intent.getStringExtra("text"));
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -159,9 +173,17 @@ public class MainActivity extends AppCompatActivity {
         applyWindowInsets();
         initializeViews();
 
+        registerReceiver(metricsReceiver, new IntentFilter("goodvin.locsync.METRICS"), RECEIVER_NOT_EXPORTED);
+
         if (GNSSServerService.isServiceEnabled(this) && !GNSSServerService.isServiceRunning()) {
             startGNSSService();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(metricsReceiver);
     }
 
     @Override
@@ -266,6 +288,17 @@ public class MainActivity extends AppCompatActivity {
             Preferences.setDebugLoggingEnabled(this, isChecked);
             AppLog.setDebug(isChecked);
         });
+
+        CheckBox metricsCheckbox = findViewById(R.id.metricsCheckbox);
+        TextView metricsPanelText = findViewById(R.id.metricsPanelText);
+        metricsCheckbox.setChecked(Preferences.metricsEnabled(this));
+        metricsPanelText.setVisibility(Preferences.metricsEnabled(this) ? View.VISIBLE : View.GONE);
+        metricsCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Preferences.setMetricsEnabled(this, isChecked);
+            metricsPanelText.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        findViewById(R.id.exportMetricsButton).setOnClickListener(v -> shareMetricsCsv());
 
         // Initialize settings UI
         updateBluetoothSettingsUI();
@@ -502,6 +535,27 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this,
                     String.format(getString(goodvin.locsync.logexporter.R.string.export_logs_error), e.getMessage()),
                     Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /**
+     * Share the metrics CSV file using an intent
+     */
+    private void shareMetricsCsv() {
+        File csv = MetricsCsvWriter.fileFor(new File(getCacheDir(), "logs"), "server");
+        if (!csv.exists() || csv.length() == 0) {
+            Toast.makeText(this, R.string.metrics_export_none, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", csv);
+            Intent share = new Intent(Intent.ACTION_SEND)
+                    .setType("text/csv")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, getString(R.string.export_metrics)));
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to share metrics CSV", e);
         }
     }
 
