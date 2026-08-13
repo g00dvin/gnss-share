@@ -1,67 +1,152 @@
 # LocSync
 
-A client-server Android system that shares live GNSS location from a phone to a car head unit over the phone's Wi-Fi hotspot, feeding the head unit's navigation via a mock GPS provider.
+Клиент-серверная система для Android, которая передаёт живые GNSS-координаты
+с телефона на автомобильную магнитолу (головное устройство) через Wi-Fi-хотспот
+телефона и подаёт их в навигацию магнитолы через mock-провайдер GPS.
 
-- **LocSync Server** (phone): collects high-precision location (Fused/GPS), runs as a foreground service, and streams updates over **UDP** to the client.
-- **LocSync Client** (head unit): discovers the server automatically, receives updates, smooths them with a Kalman filter, and injects them as system mock GPS.
+- **LocSync Server** (телефон): собирает координаты высокой точности (Fused/GPS),
+  работает как foreground-сервис и передаёт обновления по **UDP** клиенту.
+- **LocSync Client** (магнитола): сам находит сервер, принимает обновления,
+  сглаживает их фильтром Калмана и подаёт в систему как mock-GPS.
 
-## Features
+## Зачем это нужно
 
-- **UDP transport** — single-client, versioned protocol, recency-based liveness.
-- **Zero-config discovery** — the client finds the server by UDP broadcast (no IP to configure); a manual fixed-address mode is available as a fallback.
-- **Client autostart** — starts on Wi-Fi connect via a persisted JobScheduler job (plus boot).
-- **Location smoothing** — constant-velocity Kalman filter, 10 Hz output, stop-freeze and GPS-loss handling for a fluid nav icon.
+У многих автомобильных магнитол на Android нет собственного GPS-приёмника
+(или он ловит плохо), но есть Wi-Fi. У телефона GPS хороший. LocSync берёт
+точные координаты с телефона и «подсовывает» их магнитоле так, будто это её
+собственный встроенный GPS — навигация и любые приложения на магнитоле видят
+обычный источник местоположения.
 
-## Modules
+## Как это работает
 
-- `server-app` — the phone (server) app.
-- `client-app` — the head-unit (client) app.
-- `shared` — shared utilities + the UDP `Protocol` (proto wire format lives in `proto/`).
-
-## Building
-
-```bash
-./gradlew assembleDebug        # both debug APKs
-./gradlew :shared:testDebugUnitTest testDebugUnitTest   # unit tests
+```
+┌─────────────────────────┐         Wi-Fi-хотспот          ┌──────────────────────────┐
+│  Телефон (Server)        │         (UDP, порт 8887)       │  Магнитола (Client)       │
+│                          │                                │                           │
+│  Fused / GPS Location    │  ──── RESPONSE (protobuf) ───▶ │  Приём датаграмм          │
+│  Foreground Service      │                                │  Фильтр Калмана           │
+│  DatagramSocket          │  ◀──── HELLO (1 Гц) ─────────  │  MockLocationManager      │
+└─────────────────────────┘                                └──────────────────────────┘
 ```
 
-**CI**: every push (any branch) and PR builds + tests and uploads both debug APKs as a `debug-apks` artifact (GitHub Actions → the run's Artifacts). Debug builds show `Version <branch>-<shortsha>` at the bottom of the screen.
+1. Телефон раздаёт Wi-Fi-хотспот, магнитола к нему подключается.
+2. Клиент рассылает broadcast-пакет `HELLO` (1 раз в секунду) — так сервер
+   узнаёт адрес клиента, а IP-адрес настраивать вручную не нужно.
+3. Сервер шлёт клиенту `RESPONSE` с координатами в формате protobuf.
+4. Клиент сглаживает трек фильтром Калмана и отдаёт его в систему как
+   mock-провайдер GPS.
 
-## Releasing
+## Протокол (UDP)
 
-Releases are built and published automatically when a `v*` tag is pushed (`.github/workflows/release.yml`): it builds signed release APKs and publishes them to a GitHub Release. The tag becomes the app's `versionName` (shown at the bottom of the screen).
+Транспорт — «сырой» UDP на порту **8887**. Каждый пакет:
+
+```
+[version:1 байт][type:1 байт][payload...]
+```
+
+- Текущая версия протокола — **3**. При несовпадении версий сервер отвечает
+  `VERSION_MISMATCH`, чтобы клиент показал понятную ошибку, а не молчал.
+- Типы пакетов: `HELLO` (0x01), `RESPONSE` (0x02), `VERSION_MISMATCH` (0x03).
+- Максимальный размер пакета — 2048 байт.
+- `payload` пакета `RESPONSE` — это protobuf-сообщение `ServerResponse`
+  (см. `proto/location.proto`), содержащее статус, число спутников и
+  `LocationUpdate` (широта, долгота, высота, точность, курс, скорость,
+  провайдер, возраст фикса и точности скорости/курса).
+
+Живость соединения определяется **по свежести датаграмм** (recency), а не по
+явным heartbeat-подтверждениям: если давно не было пакетов — соединение считается
+разорванным.
+
+## Технические решения
+
+- **Почему UDP, а не TCP.** Сценарий — один клиент в локальной Wi-Fi-сети, где
+  потеря отдельного пакета координат некритична (через долю секунды придёт новый).
+  UDP убирает целый пласт сложности: не нужны переподключения, машина состояний
+  TCP-сокета, буферизация и длиннопрефиксное кадрирование. Меньше задержка,
+  проще код.
+- **Zero-config обнаружение.** Клиент шлёт `HELLO` broadcast-ом на
+  `255.255.255.255`, поэтому IP сервера настраивать не надо — работает «из коробки»
+  в типичном сценарии хотспота. Ручной режим с фиксированным адресом оставлен
+  как запасной вариант.
+- **Автозапуск клиента.** Клиент стартует при подключении к Wi-Fi через
+  устойчивую задачу `JobScheduler` (переживает перезагрузку) плюс запуск по boot.
+  Не нужно каждый раз заходить в магнитоле и запускать приложение руками.
+- **Сглаживание фильтром Калмана.** Constant-velocity модель, выход на **10 Гц**,
+  отдельная обработка остановки (stop-freeze) и потери GPS — чтобы иконка машинки
+  в навигации двигалась плавно, а не «прыгала».
+- **Mock-провайдер GPS.** Клиент регистрируется как источник mock-локаций
+  (`MockLocationManager`), и приложения на магнитоле видят координаты как
+  обычный GPS-фикс.
+- **protobuf-lite.** Формат сообщений описан один раз в `proto/location.proto`
+  и компилируется в оба приложения — единый источник правды для формата данных.
+
+## Требования
+
+- **Сервер:** Android 7.0 (API 24) и выше.
+- **Клиент:** Android 9.0 (API 28) и выше; в настройках разработчика магнитолы
+  нужно выбрать LocSync Client как приложение для mock-локаций.
+
+## Модули
+
+- `server-app` — приложение для телефона (сервер).
+- `client-app` — приложение для магнитолы (клиент).
+- `shared` — общие утилиты и класс `Protocol` (UDP-формат; protobuf-схема — в `proto/`).
+
+## Сборка
+
+```bash
+./gradlew assembleDebug                                   # оба debug-APK
+./gradlew :shared:testDebugUnitTest testDebugUnitTest     # юнит-тесты
+```
+
+**CI:** каждый push (в любой ветке) и PR собирают и тестируют проект и
+загружают оба debug-APK как артефакт `debug-apks` (GitHub Actions → Artifacts
+конкретного запуска). В debug-сборках внизу экрана показывается
+`Version <ветка>-<shortsha>`.
+
+## Релизы
+
+Релиз собирается и публикуется автоматически при push тега `v*`
+(`.github/workflows/release.yml`): собираются подписанные release-APK и
+публикуются в GitHub Release. Имя тега становится `versionName` приложения
+(показывается внизу экрана).
 
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
 ```
 
-### Signing setup (one-time)
+### Настройка подписи (один раз)
 
-Release builds are signed with a keystore supplied through repository secrets. The Gradle signing config expects alias `key0` and a single password used for both the store and the key.
+Release-сборки подписываются keystore из секретов репозитория. Конфигурация
+Gradle ожидает alias `key0` и один пароль и для хранилища, и для ключа.
 
-1. Create the keystore (keep it safe and out of git — `*.jks` is gitignored):
+1. Создать keystore (хранить надёжно, вне git — `*.jks` в `.gitignore`):
    ```bash
    keytool -genkeypair -v -keystore keystore.jks -alias key0 \
      -keyalg RSA -keysize 2048 -validity 10000 \
      -storepass 'PASSWORD' -keypass 'PASSWORD' \
      -dname "CN=LocSync, OU=Dev, O=LocSync, C=US"
    ```
-2. Add two GitHub repository secrets:
+2. Добавить два секрета репозитория GitHub:
    - `KEYSTORE_BASE64` — `base64 -w0 keystore.jks`
-   - `KEY_PASSWORD` — the password above
+   - `KEY_PASSWORD` — пароль из шага выше
    ```bash
    base64 -w0 keystore.jks | gh secret set KEYSTORE_BASE64
    gh secret set KEY_PASSWORD --body 'PASSWORD'
    ```
 
-> **Back up `keystore.jks` and its password.** Losing them means you can no longer sign updates with the same identity.
+> **Сохраните `keystore.jks` и его пароль.** Их потеря означает, что подписывать
+> обновления той же подписью больше не получится.
 
-## Usage
+## Использование
 
-1. **Phone (server)**: launch LocSync Server, grant permissions, Start Server (enable Wi-Fi hotspot).
-2. **Head unit (client)**: select LocSync Client as the mock-location app (Developer Options), join the phone's hotspot, launch the app — it auto-discovers and connects.
+1. **Телефон (сервер):** запустить LocSync Server, выдать разрешения, нажать
+   Start Server (включить Wi-Fi-хотспот).
+2. **Магнитола (клиент):** выбрать LocSync Client как приложение mock-локаций
+   (настройки разработчика), подключиться к хотспоту телефона, запустить
+   приложение — оно само найдёт сервер и подключится.
 
-## License
+## Лицензия
 
 [GNU General Public License v3.0](LICENSE).
