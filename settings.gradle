@@ -20,4 +20,4 @@ plugins {
 }
 
 include ':server-app', ':client-app', ':shared'
-rootProject.name = "GNSS Sharing System"
+rootProject.name = "LocSync"
