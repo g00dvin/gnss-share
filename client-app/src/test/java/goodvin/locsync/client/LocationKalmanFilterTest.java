@@ -28,6 +28,39 @@ public class LocationKalmanFilterTest {
         return new LocationKalmanFilter(2.0, 1.0);
     }
 
+    private static final double M_PER_DEG_LAT = 111320.0;
+
+    // Tunnel case: the provider reports NO speed/bearing (hasSpeed=false). A moving car must still
+    // have its velocity inferred from position motion — not pinned to zero by a fake speed=0
+    // measurement. This is the root cause of the "icon frozen while GPS looks OK" tunnel bug.
+    @Test
+    public void unknownSpeedDoesNotPinVelocityToZero() {
+        LocationKalmanFilter f = newFilter();
+        double lat = 59.0;
+        final double dLat = 10.0 / M_PER_DEG_LAT; // ~10 m/s north
+        f.update(lat, 30.0, 0.0, 0.0, 5.0, 0.0, 0.0, false, false);
+        for (int i = 0; i < 20; i++) {
+            f.predict(1.0);
+            lat += dLat;
+            f.update(lat, 30.0, 0.0, 0.0, 5.0, 0.0, 0.0, false, false);
+        }
+        assertTrue("speed inferred from motion, got " + f.getSpeed(), f.getSpeed() > 7.0);
+        assertTrue("moving north, got vn=" + f.getVn(), f.getVn() > 7.0);
+    }
+
+    // Skipping the velocity measurement must not invent motion when the car is genuinely stationary:
+    // position not moving => inferred velocity stays ~0.
+    @Test
+    public void unknownSpeedWithNoMotionStaysStationary() {
+        LocationKalmanFilter f = newFilter();
+        f.update(59.0, 30.0, 0.0, 0.0, 5.0, 0.0, 0.0, false, false);
+        for (int i = 0; i < 20; i++) {
+            f.predict(1.0);
+            f.update(59.0, 30.0, 0.0, 0.0, 5.0, 0.0, 0.0, false, false);
+        }
+        assertTrue("no motion => ~0 speed, got " + f.getSpeed(), f.getSpeed() < 2.0);
+    }
+
     @Test
     public void firstUpdateInitializes() {
         LocationKalmanFilter f = newFilter();

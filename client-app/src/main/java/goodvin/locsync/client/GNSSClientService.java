@@ -83,6 +83,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private static final long GPS_LOSS_CAP_MS = 2500;
     private volatile long lastFixElapsedMs = 0;           // SystemClock.elapsedRealtime of last real fix
     private long lastPredictElapsedMs = 0;
+    private long lastFedFixTimestampMs = Long.MIN_VALUE;  // LocationUpdate.timestamp last fed to the filter (dedup keepalive resends)
     private volatile double lastAltitude = 0;
     private final Runnable smoothingTick = this::smoothingTick;
 
@@ -429,16 +430,34 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             final float acc = locationUpdate.getAccuracy();
             final float spdAcc = locationUpdate.getSpeedAccuracy();
             final float brgAcc = locationUpdate.getBearingAccuracy();
+            final boolean hasSpd = locationUpdate.hasSpeed();
+            final boolean hasBrg = locationUpdate.hasBearing();
+            final long fixTs = locationUpdate.getTimestamp();
             final double alt = locationUpdate.getAltitude();
             mainHandler.post(() -> {
                 try {
+                    // Skip keepalive resends of a fix already fed to the filter. The server re-sends the
+                    // last response ~1 Hz to keep the connection live; re-feeding that same stale fix (and,
+                    // in a tunnel, its phantom speed=0) is what pinned velocity and froze the icon.
+                    if (fixTs == lastFedFixTimestampMs) {
+                        return;
+                    }
+                    lastFedFixTimestampMs = fixTs;
+
                     long nowElapsed = SystemClock.elapsedRealtime();
-                    if (kalman.isInitialized() && lastPredictElapsedMs > 0) {
+                    boolean resumingAfterGap =
+                            lastFixElapsedMs == 0 || (nowElapsed - lastFixElapsedMs) > GPS_LOSS_CAP_MS;
+                    if (resumingAfterGap) {
+                        // Fresh start, or the first real fix after a GPS gap (e.g. tunnel exit): re-anchor so
+                        // the estimate snaps to the new position instead of lurching from stale state.
+                        kalman.reset();
+                        lastPredictElapsedMs = 0;
+                    } else if (kalman.isInitialized() && lastPredictElapsedMs > 0) {
                         // Cap dt so a long GPS gap can't feed a huge predict step (bounds process-noise growth).
                         double dt = Math.min((nowElapsed - lastPredictElapsedMs) / 1000.0, 5.0);
                         kalman.predict(dt);
                     }
-                    kalman.update(lat, lon, spd, brg, acc, spdAcc, brgAcc);
+                    kalman.update(lat, lon, spd, brg, acc, spdAcc, brgAcc, hasSpd, hasBrg);
                     lastAltitude = alt;
                     lastFixElapsedMs = nowElapsed;
                     lastPredictElapsedMs = nowElapsed;
