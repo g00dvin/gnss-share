@@ -105,6 +105,16 @@ public class Preferences {
         return getPrefs(context).getBoolean(PREF_DEBUG_LOGGING, false);
     }
 
+    private static final String PREF_METRICS_ENABLED = "metricsEnabled";
+
+    public static void setMetricsEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(PREF_METRICS_ENABLED, enabled).apply();
+    }
+
+    public static boolean metricsEnabled(Context context) {
+        return getPrefs(context).getBoolean(PREF_METRICS_ENABLED, false);
+    }
+
     private static SharedPreferences getPrefs(Context context) {
         final Context deviceContext = context.getApplicationContext().createDeviceProtectedStorageContext();
         return deviceContext.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);

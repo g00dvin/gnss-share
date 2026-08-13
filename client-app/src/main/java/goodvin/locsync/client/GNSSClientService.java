@@ -52,7 +52,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import goodvin.locsync.proto.LocationProto;
+import goodvin.locsync.shared.AndroidSystemStatsReader;
+import goodvin.locsync.shared.Metrics;
+import goodvin.locsync.shared.MetricsCsvWriter;
+import goodvin.locsync.shared.MetricsSnapshot;
 import goodvin.locsync.shared.Protocol;
+import goodvin.locsync.shared.SystemStatsReader;
 
 public class GNSSClientService extends Service implements ConnectionManager.ConnectionListener {
     private static final String TAG = "GNSSClientService";
@@ -83,6 +88,16 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
     private volatile DatagramSocket udpSocket;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Metrics metrics = new Metrics();
+    private SystemStatsReader statsReader;
+    private MetricsCsvWriter csvWriter;
+    private volatile boolean metricsPrimed = false;
+    private long lastTickWallMs = 0;
+    private static final long METRICS_INTERVAL_MS = 1000;
+    private static final String METRICS_TAG = "METRICS";
+    private final Runnable metricsTick = this::sampleMetrics;
+    private final java.text.SimpleDateFormat metricsTs =
+            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US);
     private static final long HELLO_INTERVAL_MS = 1000;
     private static final long CONNECTED_TIMEOUT_MS = 3000;
     private static final String BROADCAST_ADDR = "255.255.255.255";
@@ -230,6 +245,9 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         lastPredictElapsedMs = 0;
         mainHandler.post(smoothingTick);
+
+        lastTickWallMs = 0;
+        mainHandler.post(this::startMetricsSampler);
     }
 
     private void stopTransport(String reason) {
@@ -239,6 +257,8 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         AppLog.i(TAG, "Stopping transport: " + reason);
         mainHandler.removeCallbacks(helloTick);
         mainHandler.removeCallbacks(smoothingTick);
+        mainHandler.removeCallbacks(metricsTick);
+        metricsPrimed = false;
         if (udpSocket != null) {
             udpSocket.close();
             udpSocket = null;
@@ -334,6 +354,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
         if (header.type != Protocol.TYPE_RESPONSE) {
             return;
         }
+        metrics.recordPacketRecv(packet.getLength(), SystemClock.elapsedRealtime());
 
         try {
             LocationProto.ServerResponse response = LocationProto.ServerResponse.parseFrom(
@@ -368,6 +389,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     private void handleLocationUpdate(LocationProto.ServerResponse response) {
         try {
             LocationProto.LocationUpdate locationUpdate = response.getLocationUpdate();
+            metrics.recordFixAgeMs(locationUpdate.getLocationAge() * 1000.0);
             // Create Android Location object
             Location location = new Location(LocationManager.GPS_PROVIDER);
             location.setLatitude(locationUpdate.getLatitude());
@@ -434,6 +456,11 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     }
 
     private void smoothingTick() {
+        long tickWall = SystemClock.elapsedRealtime();
+        if (lastTickWallMs != 0) {
+            metrics.recordTickJitterMs(Math.abs((tickWall - lastTickWallMs) - OUTPUT_INTERVAL_MS));
+        }
+        lastTickWallMs = tickWall;
         if (!running.get()) {
             return;
         }
@@ -476,6 +503,40 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
             Log.e(TAG, "Error setting mock location", e);
             broadcastMockLocationStatus(String.format(getString(R.string.mock_location_setup_failed), e.getMessage()), true);
         }
+    }
+
+    private void startMetricsSampler() {
+        if (statsReader == null) statsReader = new AndroidSystemStatsReader(this);
+        if (csvWriter == null) {
+            csvWriter = new MetricsCsvWriter(new java.io.File(getCacheDir(), "logs"), "client", 5_000_000);
+        }
+        mainHandler.removeCallbacks(metricsTick);
+        metricsPrimed = false;
+        mainHandler.postDelayed(metricsTick, METRICS_INTERVAL_MS);
+    }
+
+    private void sampleMetrics() {
+        try {
+            if (Preferences.metricsEnabled(this)) {
+                MetricsSnapshot s = metrics.snapshot(statsReader.read());
+                if (!metricsPrimed) {
+                    metricsPrimed = true;
+                } else {
+                    String ts = metricsTs.format(new java.util.Date());
+                    long uptimeS = SystemClock.elapsedRealtime() / 1000;
+                    csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
+                    Log.i(METRICS_TAG, s.toLogLine());
+                    sendBroadcast(new Intent("goodvin.locsync.METRICS")
+                            .setPackage(getPackageName())
+                            .putExtra("text", s.toDisplayString()));
+                }
+            } else {
+                metricsPrimed = false;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "metrics sampling failed", e);
+        }
+        mainHandler.postDelayed(metricsTick, METRICS_INTERVAL_MS);
     }
 
     private void broadcastMockLocationStatus(String message, boolean error) {

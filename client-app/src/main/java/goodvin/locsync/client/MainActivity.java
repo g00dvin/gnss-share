@@ -56,6 +56,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import goodvin.locsync.shared.LogExporter;
+import goodvin.locsync.shared.MetricsCsvWriter;
 import goodvin.locsync.shared.VersionGetter;
 
 public class MainActivity extends AppCompatActivity {
@@ -146,6 +147,16 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private final BroadcastReceiver metricsReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("goodvin.locsync.METRICS".equals(intent.getAction())) {
+                TextView panel = findViewById(R.id.metricsPanelText);
+                if (panel != null) panel.setText(intent.getStringExtra("text"));
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -182,6 +193,7 @@ public class MainActivity extends AppCompatActivity {
         unregisterReceiver(connectionReceiver);
         unregisterReceiver(locationReceiver);
         unregisterReceiver(mockLocationStatusReceiver);
+        unregisterReceiver(metricsReceiver);
         uiHandler.removeCallbacksAndMessages(null);
     }
 
@@ -275,6 +287,17 @@ public class MainActivity extends AppCompatActivity {
             AppLog.setDebug(isChecked);
         });
 
+        CheckBox metricsCheckbox = findViewById(R.id.metricsCheckbox);
+        TextView metricsPanelText = findViewById(R.id.metricsPanelText);
+        metricsCheckbox.setChecked(Preferences.metricsEnabled(this));
+        metricsPanelText.setVisibility(Preferences.metricsEnabled(this) ? View.VISIBLE : View.GONE);
+        metricsCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Preferences.setMetricsEnabled(this, isChecked);
+            metricsPanelText.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        findViewById(R.id.exportMetricsButton).setOnClickListener(v -> shareMetricsCsv());
+
         // Set up server IP edit text change listener
         serverIpEdit.addTextChangedListener(new TextWatcher() {
             @Override
@@ -337,6 +360,8 @@ public class MainActivity extends AppCompatActivity {
 
         IntentFilter mockLocationStatusFilter = new IntentFilter("goodvin.locsync.MOCK_LOCATION_STATUS");
         registerReceiver(mockLocationStatusReceiver, mockLocationStatusFilter, RECEIVER_NOT_EXPORTED);
+
+        registerReceiver(metricsReceiver, new IntentFilter("goodvin.locsync.METRICS"), RECEIVER_NOT_EXPORTED);
     }
 
     private void startGNSSService() {
@@ -720,6 +745,24 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this,
                     String.format(getString(goodvin.locsync.logexporter.R.string.export_logs_error), e.getMessage()),
                     Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void shareMetricsCsv() {
+        File csv = MetricsCsvWriter.fileFor(new File(getCacheDir(), "logs"), "client");
+        if (!csv.exists() || csv.length() == 0) {
+            Toast.makeText(this, R.string.metrics_export_none, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", csv);
+            Intent share = new Intent(Intent.ACTION_SEND)
+                    .setType("text/csv")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, getString(R.string.export_metrics)));
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to share metrics CSV", e);
         }
     }
 }

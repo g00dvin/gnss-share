@@ -87,4 +87,9 @@
     <string name="notification_text_connected_no_age">Receiving location data</string>
     <string name="notification_text_location_format">Lat: %1$.6f, Lon: %2$.6f</string>
     <string name="notification_channel_description">%s Location Service</string>
+
+    <string name="metrics_enabled">Performance metrics (measure &amp; log)</string>
+    <string name="metrics_panel_title">Performance Metrics</string>
+    <string name="export_metrics">Export Metrics CSV</string>
+    <string name="metrics_export_none">No metrics file yet — enable metrics and start the service</string>
 </resources>
