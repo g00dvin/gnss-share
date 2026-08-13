@@ -35,6 +35,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import goodvin.locsync.shared.AppLog;
 
@@ -57,7 +58,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import goodvin.locsync.proto.LocationProto;
+import goodvin.locsync.shared.AndroidSystemStatsReader;
+import goodvin.locsync.shared.Metrics;
+import goodvin.locsync.shared.MetricsCsvWriter;
+import goodvin.locsync.shared.MetricsSnapshot;
 import goodvin.locsync.shared.Protocol;
+import goodvin.locsync.shared.SystemStatsReader;
 
 public class GNSSServerService extends Service {
     private static final String TAG = "GNSSServerService";
@@ -101,6 +107,15 @@ public class GNSSServerService extends Service {
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Metrics metrics = new Metrics();
+    private SystemStatsReader statsReader;
+    private MetricsCsvWriter csvWriter;
+    private boolean metricsPrimed = false;
+    private static final long METRICS_INTERVAL_MS = 1000;
+    private static final String METRICS_TAG = "METRICS";
+    private final Runnable metricsTick = this::sampleMetrics;
+    private final java.text.SimpleDateFormat metricsTs =
+            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US);
     private final GnssStatus.Callback gnssStatusCallback = new GnssStatus.Callback() {
         @Override
         public void onSatelliteStatusChanged(@NonNull GnssStatus status) {
@@ -267,6 +282,7 @@ public class GNSSServerService extends Service {
             }
 
             mainHandler.post(() -> mainHandler.postDelayed(keepaliveRunnable, KEEPALIVE_INTERVAL_MS));
+            mainHandler.post(this::startMetricsSampler);
 
             byte[] buffer = new byte[Protocol.MAX_PACKET_BYTES];
             while (udpSocket != null && !udpSocket.isClosed()) {
@@ -320,6 +336,7 @@ public class GNSSServerService extends Service {
         }
         try {
             udpSocket.send(new DatagramPacket(data, data.length, dest));
+            metrics.recordPacketSent(data.length);
         } catch (IOException e) {
             Log.w(TAG, "Error sending UDP packet", e);
         }
@@ -328,11 +345,47 @@ public class GNSSServerService extends Service {
     private void stopServer() {
         AppLog.d(TAG, "Stopping UDP server");
         mainHandler.removeCallbacks(keepaliveRunnable);
+        mainHandler.removeCallbacks(metricsTick);
+        metricsPrimed = false;
         clientAddr = null;
         if (udpSocket != null) {
             udpSocket.close();
             udpSocket = null;
         }
+    }
+
+    private void startMetricsSampler() {
+        if (statsReader == null) statsReader = new AndroidSystemStatsReader(this);
+        if (csvWriter == null) {
+            csvWriter = new MetricsCsvWriter(new java.io.File(getCacheDir(), "logs"), "server", 5_000_000);
+        }
+        mainHandler.removeCallbacks(metricsTick);
+        metricsPrimed = false;
+        mainHandler.postDelayed(metricsTick, METRICS_INTERVAL_MS);
+    }
+
+    private void sampleMetrics() {
+        try {
+            if (Preferences.metricsEnabled(this)) {
+                MetricsSnapshot s = metrics.snapshot(statsReader.read());
+                if (!metricsPrimed) {
+                    metricsPrimed = true; // first call primed the baseline; skip emitting garbage window
+                } else {
+                    String ts = metricsTs.format(new java.util.Date());
+                    long uptimeS = SystemClock.elapsedRealtime() / 1000;
+                    csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
+                    Log.i(METRICS_TAG, s.toLogLine());
+                    sendBroadcast(new Intent("goodvin.locsync.METRICS")
+                            .setPackage(getPackageName())
+                            .putExtra("text", s.toDisplayString()));
+                }
+            } else {
+                metricsPrimed = false; // re-prime next time it is enabled
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "metrics sampling failed", e);
+        }
+        mainHandler.postDelayed(metricsTick, METRICS_INTERVAL_MS);
     }
 
     private void startLocationUpdates() {
@@ -406,6 +459,8 @@ public class GNSSServerService extends Service {
     }
 
     private void handleLocationUpdate(Location location) {
+        metrics.recordFix();
+
         AppLog.d(TAG, String.format("Handling location update: %s", location));
 
         // Create protobuf message
