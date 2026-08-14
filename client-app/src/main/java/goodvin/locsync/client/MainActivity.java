@@ -769,8 +769,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopGNSSService() {
-        Preferences.setServiceEnabled(this, false);
-        AutostartScheduler.cancel(this);
+        // Pause only: stop the running instance but keep the service "enabled" and the Wi-Fi/boot
+        // autostart job armed, so it comes back on the next trigger (Wi-Fi connect, reboot, relaunch).
+        // Autostart is disabled instead via the Automation toggle.
         stopService(new Intent(this, GNSSClientService.class));
         connectedSinceElapsed = 0;
     }

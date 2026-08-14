@@ -683,7 +683,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopGNSSService() {
-        GNSSServerService.setServiceEnabled(this, false);
+        // Pause only: stop the running instance but keep the service "enabled" so it restarts on
+        // relaunch and Bluetooth auto-start still fires. Automatic BT auto-stop clears the flag.
         stopService(new Intent(this, GNSSServerService.class));
         connectedSinceElapsed = 0;
     }
