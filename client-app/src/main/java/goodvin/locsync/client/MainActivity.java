@@ -112,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
     private String appVersion = "<unknown>";
     private String warningMessage = null;   // version mismatch / mock-provider error, shown in banner
     private boolean mockError = false;
+    private Runnable bannerAction = null;    // what tapping the connect banner does (depends on the issue)
     private long connectedSinceElapsed = 0;
 
     // Latest values for the connect/monitor readouts.
@@ -324,9 +325,11 @@ public class MainActivity extends AppCompatActivity {
         setText(statCard3, R.id.statLabel, getString(R.string.uptime_label));
 
         powerOrb.setOnClickListener(v -> togglePower());
-        findViewById(R.id.bannerDismiss).setOnClickListener(v -> {
-            connectBanner.setVisibility(View.GONE);
+        connectBanner.setOnClickListener(v -> {
+            if (bannerAction != null) bannerAction.run();
         });
+        findViewById(R.id.bannerDismiss).setOnClickListener(v ->
+                connectBanner.setVisibility(View.GONE));
 
         TextView versionText = findViewById(R.id.versionText);
         String buildLabel = getString(R.string.build_label);
@@ -512,16 +515,50 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateBanner(LinkState state) {
         String msg = null;
-        if (warningMessage != null && mockError) {
-            msg = warningMessage;   // version mismatch or mock-provider failure
+        Runnable action = null;
+
+        List<String> missing = missingPermissionNames();
+        if (!missing.isEmpty()) {
+            // First launch / revoked: name the exact permissions and let a tap request them.
+            msg = String.format(getString(R.string.missing_permissions), String.join(", ", missing));
+            action = this::requestPermissions;
+        } else if (warningMessage != null && mockError) {
+            // Version mismatch or a mock-provider failure reported by the service.
+            msg = warningMessage;
+            action = this::openMockLocationSettings;
         } else if (!MockLocationManager.isSelectedMockApp(this)) {
             msg = getString(R.string.mock_app_not_selected);
+            action = this::openMockLocationSettings;
         }
+
+        bannerAction = action;
         if (msg != null) {
             bannerText.setText(msg);
             connectBanner.setVisibility(View.VISIBLE);
         } else {
             connectBanner.setVisibility(View.GONE);
+        }
+    }
+
+    private List<String> missingPermissionNames() {
+        List<String> missing = new ArrayList<>();
+        for (String p : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                missing.add(getPermissionName(p));
+            }
+        }
+        return missing;
+    }
+
+    private void openMockLocationSettings() {
+        try {
+            mockLocationSettingsLauncher.launch(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+        } catch (Exception e) {
+            try {
+                mockLocationSettingsLauncher.launch(new Intent(Settings.ACTION_SETTINGS));
+            } catch (Exception ignored) {
+                Log.w(TAG, "Cannot open settings", e);
+            }
         }
     }
 
