@@ -41,12 +41,26 @@ jobs:
         echo "BUILD_LABEL=$BUILD_LABEL"
         ./gradlew assembleDebug
 
-    - name: Upload debug APKs
+    - name: Collect debug APKs
+      run: |
+        mkdir -p artifacts
+        cp client-app/build/outputs/apk/debug/*.apk artifacts/
+        cp server-app/build/outputs/apk/debug/*.apk artifacts/
+
+    # One artifact per app, each containing just the APK at the zip root (GitHub always wraps
+    # artifacts in a zip; a raw .apk download is only available from a tagged Release).
+    - name: Upload client debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: debug-apks
-        path: |
-          server-app/build/outputs/apk/debug/*.apk
-          client-app/build/outputs/apk/debug/*.apk
+        name: locsync-client-debug
+        path: artifacts/locsync-client-*-debug.apk
+        if-no-files-found: error
+        retention-days: 14
+
+    - name: Upload server debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: locsync-server-debug
+        path: artifacts/locsync-server-*-debug.apk
         if-no-files-found: error
         retention-days: 14

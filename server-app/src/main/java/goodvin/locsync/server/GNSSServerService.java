@@ -663,7 +663,16 @@ public class GNSSServerService extends Service {
         if (gnssStatus == null) {
             return 0;
         }
-        return gnssStatus.getSatelliteCount();
+        // Report satellites actually used in the fix rather than every satellite tracked, so the
+        // count is meaningful (e.g. ~8-14) instead of the raw all-constellation total (~80+).
+        int used = 0;
+        int total = gnssStatus.getSatelliteCount();
+        for (int i = 0; i < total; i++) {
+            if (gnssStatus.usedInFix(i)) {
+                used++;
+            }
+        }
+        return used;
     }
 
     private boolean isGooglePlayServicesAvailable(Context context) {
