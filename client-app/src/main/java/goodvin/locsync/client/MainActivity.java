@@ -207,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
         bindSettings();
         registerReceivers();
 
+        showView(VIEW_CONNECT);
         refreshPermissions();
         refreshState();
         startUIUpdates();
@@ -262,7 +263,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         btnRight.setOnClickListener(v -> showView(VIEW_MONITOR));
-        showView(VIEW_CONNECT);
     }
 
     private void showView(int index) {

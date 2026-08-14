@@ -201,6 +201,8 @@ public class MainActivity extends AppCompatActivity {
         ContextCompat.registerReceiver(this, metricsReceiver,
                 new IntentFilter("goodvin.locsync.METRICS"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
+        showView(VIEW_CONNECT);
+
         if (GNSSServerService.isServiceEnabled(this) && !GNSSServerService.isServiceRunning()) {
             startGNSSService();
         }
@@ -247,7 +249,6 @@ public class MainActivity extends AppCompatActivity {
         btnLeft.setOnClickListener(v -> showView(
                 viewFlipper.getDisplayedChild() == VIEW_CONNECT ? VIEW_SETTINGS : VIEW_CONNECT));
         btnRight.setOnClickListener(v -> showView(VIEW_MONITOR));
-        showView(VIEW_CONNECT);
     }
 
     private void showView(int index) {
