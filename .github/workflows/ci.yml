@@ -12,6 +12,9 @@ jobs:
   build:
     name: Build & Test (debug)
     runs-on: ubuntu-latest
+    # Write access so the debug prerelease step can create/update a Release.
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -64,3 +67,25 @@ jobs:
         path: artifacts/locsync-server-*-debug.apk
         if-no-files-found: error
         retention-days: 14
+
+    # Attach the raw debug APKs to a per-branch rolling prerelease so they can be installed
+    # directly (Actions artifacts are always zipped; Release assets are not). Push events only,
+    # so pull requests never publish a Release.
+    - name: Compute release tag
+      if: github.event_name == 'push'
+      run: echo "TAG_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> "$GITHUB_ENV"
+
+    - name: Publish debug prerelease
+      if: github.event_name == 'push'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: debug-${{ env.TAG_SLUG }}
+        name: "Debug build — ${{ github.ref_name }}"
+        prerelease: true
+        draft: false
+        # Move the rolling tag to the current commit on each push.
+        target_commitish: ${{ github.sha }}
+        body: |
+          Automated **debug** build from `${{ github.ref_name }}` @ `${{ github.sha }}`.
+          Debug-signed (not the release key). Uninstall any release build first if install fails.
+        files: artifacts/*.apk
