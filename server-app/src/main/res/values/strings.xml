@@ -80,4 +80,13 @@
     <string name="metrics_panel_title">Performance Metrics</string>
     <string name="export_metrics">Export Metrics CSV</string>
     <string name="metrics_export_none">No metrics file yet — enable metrics and start the server</string>
+
+    <!-- Location readouts for the Monitor screen (mirrors the client's) -->
+    <string name="unknown">unknown</string>
+    <string name="location_format" translatable="false">%.6f, %.6f</string>
+    <string name="altitude_format">" (%.1fm)"</string>
+    <string name="location_accuracy_format">" ±%.1fm"</string>
+    <string name="speed_format">%.1f m/s</string>
+    <string name="bearing_format" translatable="false">%.1f°</string>
+    <string name="age_format">%.1fs</string>
 </resources>

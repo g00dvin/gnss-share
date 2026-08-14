@@ -377,7 +377,16 @@ public class GNSSServerService extends Service {
                     Log.i(METRICS_TAG, s.toLogLine());
                     sendBroadcast(new Intent("goodvin.locsync.METRICS")
                             .setPackage(getPackageName())
-                            .putExtra("text", s.toDisplayString()));
+                            .putExtra("text", s.toDisplayString())
+                            .putExtra("pktSentPerSec", s.pktSentPerSec)
+                            .putExtra("pktRecvPerSec", s.pktRecvPerSec)
+                            .putExtra("bytesSentPerSec", s.bytesSentPerSec)
+                            .putExtra("bytesRecvPerSec", s.bytesRecvPerSec)
+                            .putExtra("maxGapMs", s.maxGapMs)
+                            .putExtra("ageMeanMs", s.ageMeanMs)
+                            .putExtra("ageP95Ms", s.ageP95Ms)
+                            .putExtra("cpuPct", s.cpuPct)
+                            .putExtra("fixesPerSec", s.fixesPerSec));
                 }
             } else {
                 metricsPrimed = false; // re-prime next time it is enabled
@@ -541,6 +550,25 @@ public class GNSSServerService extends Service {
 
     public static boolean isServiceRunning() {
         return running;
+    }
+
+    /** True when a HELLO-registered client is currently present (drives {@code LinkState.CONNECTED}). */
+    public static boolean isClientConnected() {
+        return instance != null && instance.clientAddr != null;
+    }
+
+    /** Current satellite count, or 0 when the service is not running. */
+    public static int currentSatelliteCount() {
+        return instance != null ? instance.getSatelliteCount() : 0;
+    }
+
+    /** The most recent GNSS fix the server is transmitting, or null when none/stopped. */
+    public static LocationProto.LocationUpdate currentLocationUpdate() {
+        if (instance == null) {
+            return null;
+        }
+        LocationProto.ServerResponse resp = instance.lastServerResponse.build();
+        return resp.hasLocationUpdate() ? resp.getLocationUpdate() : null;
     }
 
     // Public methods for checking service state

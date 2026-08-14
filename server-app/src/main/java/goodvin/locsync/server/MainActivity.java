@@ -18,6 +18,7 @@
 package goodvin.locsync.server;
 
 import android.Manifest;
+import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -31,94 +32,113 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
-import goodvin.locsync.shared.AppLog;
-import android.widget.CheckBox;
 import android.view.View;
-import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ViewFlipper;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
-import android.widget.ImageView;
-import android.widget.LinearLayout;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import goodvin.locsync.proto.LocationProto;
+import goodvin.locsync.shared.AppLog;
+import goodvin.locsync.shared.LinkState;
 import goodvin.locsync.shared.LogExporter;
 import goodvin.locsync.shared.MetricsCsvWriter;
+import goodvin.locsync.shared.PowerOrbView;
+import goodvin.locsync.shared.SatelliteBarsView;
+import goodvin.locsync.shared.SparklineView;
 import goodvin.locsync.shared.VersionGetter;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "GNSSServerActivity";
+    private static final int VIEW_CONNECT = 0, VIEW_MONITOR = 1, VIEW_SETTINGS = 2;
 
-    // Foreground location permissions — must be requested first
     private static final String[] FOREGROUND_LOCATION_PERMISSIONS = {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
     };
-
-    // All required permissions (used for status checks)
     private static final String[] REQUIRED_PERMISSIONS = {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_BACKGROUND_LOCATION,
     };
-
-    // Bluetooth permissions (for Android 12+)
     private static final String[] BLUETOOTH_PERMISSIONS = {
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.BLUETOOTH_SCAN,
     };
 
-    private Button requestPermissionsButton;
-    private Button startServiceButton;
-    private Button stopServiceButton;
-    private TextView statusText;
-    private TextView permissionsStatusText;
-    private TextView technicalDetailsText;
-    private Switch bluetoothAutoStartSwitch;
-    private Button addBluetoothDeviceButton;
-    private LinearLayout bluetoothDeviceList;
-    private Switch fusedLocationSwitch;
-    private TextView fusedLocationInfo;
+    private ViewFlipper viewFlipper;
+    private ImageView btnLeft, btnRight;
+    private TextView titleText, subtitleText;
 
-    // Foreground location permissions — when granted, request background location separately
+    private PowerOrbView powerOrb;
+    private TextView statusLine, statusSub, signalDetail, bannerText;
+    private View connectBanner;
+    private SatelliteBarsView satBars;
+    private View statCard1, statCard2, statCard3;
+
+    private TextView monLocation, monAltAcc, logText;
+    private View logDot;
+    private SparklineView sparkAgeView, sparkPktView, sparkSatView;
+    private TextView sparkAgeVal, sparkPktVal, sparkSatVal;
+
+    private Switch fusedSwitch, bluetoothSwitch;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final SimpleDateFormat logTime = new SimpleDateFormat("HH:mm:ss", Locale.US);
+    private String appVersion = "<unknown>";
+    private long connectedSinceElapsed = 0;
+
+    private double mPktSent = Double.NaN, mBytesSent = Double.NaN, mMaxGap = Double.NaN,
+            mAgeMean = Double.NaN, mAgeP95 = Double.NaN, mCpu = Double.NaN, mFixes = Double.NaN;
+
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            refreshState();
+            updateMonitorLocation();
+            if (viewFlipper.getDisplayedChild() == VIEW_MONITOR) renderLog();
+            blinkLogDot();
+            mainHandler.postDelayed(this, 1000);
+        }
+    };
+
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
                 boolean allGranted = !result.containsValue(false);
                 if (allGranted) {
-                    // Foreground granted — now request background location separately (Android 11+ requirement)
                     requestBackgroundLocationIfNeeded();
                 } else {
                     Toast.makeText(this, R.string.missing_permissions_toast, Toast.LENGTH_LONG).show();
-                    updatePermissionsStatus();
+                    refreshPermissions();
                 }
             });
 
-    // Background location must be requested separately on Android 11+ (after foreground is granted)
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (granted) {
@@ -126,13 +146,13 @@ public class MainActivity extends AppCompatActivity {
                     checkBatteryOptimization();
                 } else {
                     Toast.makeText(this, R.string.missing_permissions_toast, Toast.LENGTH_LONG).show();
-                    updatePermissionsStatus();
                 }
+                refreshPermissions();
             });
 
     private final ActivityResultLauncher<Intent> batteryOptimizationLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result ->
-                    updatePermissionsStatus());
+                    refreshPermissions());
 
     private final ActivityResultLauncher<String[]> bluetoothPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -144,21 +164,22 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final Runnable fillInterfaceListRunnable = new Runnable() {
-        @Override
-        public void run() {
-            fillInterfaceList();
-            mainHandler.postDelayed(this, 1000);
-        }
-    };
-
     private final BroadcastReceiver metricsReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if ("goodvin.locsync.METRICS".equals(intent.getAction())) {
-                TextView panel = findViewById(R.id.metricsPanelText);
-                if (panel != null) panel.setText(intent.getStringExtra("text"));
+                mPktSent = intent.getDoubleExtra("pktSentPerSec", Double.NaN);
+                mBytesSent = intent.getDoubleExtra("bytesSentPerSec", Double.NaN);
+                mMaxGap = intent.getDoubleExtra("maxGapMs", Double.NaN);
+                mAgeMean = intent.getDoubleExtra("ageMeanMs", Double.NaN);
+                mAgeP95 = intent.getDoubleExtra("ageP95Ms", Double.NaN);
+                mCpu = intent.getDoubleExtra("cpuPct", Double.NaN);
+                mFixes = intent.getDoubleExtra("fixesPerSec", Double.NaN);
+                if (!Double.isNaN(mAgeMean)) sparkAgeView.push((float) mAgeMean);
+                if (!Double.isNaN(mPktSent)) sparkPktView.push((float) mPktSent);
+                sparkSatView.push(GNSSServerService.currentSatelliteCount());
+                updateMonitorMetrics();
+                updateConnectReadouts();
             }
         }
     };
@@ -166,14 +187,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
         setContentView(R.layout.activity_main_server);
         AppLog.setDebug(Preferences.debugLoggingEnabled(this));
 
-        applyWindowInsets();
-        initializeViews();
+        appVersion = VersionGetter.getAppVersionName(this);
 
-        ContextCompat.registerReceiver(this, metricsReceiver, new IntentFilter("goodvin.locsync.METRICS"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        bindTopBar();
+        bindConnect();
+        bindMonitor();
+        bindSettings();
+
+        ContextCompat.registerReceiver(this, metricsReceiver,
+                new IntentFilter("goodvin.locsync.METRICS"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
         if (GNSSServerService.isServiceEnabled(this) && !GNSSServerService.isServiceRunning()) {
             startGNSSService();
@@ -184,228 +210,444 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         unregisterReceiver(metricsReceiver);
+        mainHandler.removeCallbacksAndMessages(null);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-
-        updateUIState(GNSSServerService.isServiceEnabled(this));
-        updatePermissionsStatus();
-
-        mainHandler.post(this.fillInterfaceListRunnable);
+        refreshPermissions();
+        refreshState();
+        mainHandler.post(tick);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-
-        mainHandler.removeCallbacks(this.fillInterfaceListRunnable);
+        mainHandler.removeCallbacks(tick);
     }
 
-    /**
-     * Handle edge-to-edge enforcement on Android 15+ (targetSdk 35+).
-     * Apply system bar insets as padding on the header (top) and copyright (bottom)
-     * so they don't get drawn under the status / navigation bars.
-     */
-    private void applyWindowInsets() {
-        View header = findViewById(R.id.header);
-        View copyright = findViewById(R.id.copyrightText);
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.rootLayout), (v, windowInsets) -> {
-            Insets bars = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            header.setPadding(
-                    header.getPaddingLeft(),
-                    bars.top + (int) (12 * getResources().getDisplayMetrics().density),
-                    header.getPaddingRight(),
-                    header.getPaddingBottom());
-            copyright.setPadding(
-                    copyright.getPaddingLeft(),
-                    copyright.getPaddingTop(),
-                    copyright.getPaddingRight(),
-                    bars.bottom + (int) (8 * getResources().getDisplayMetrics().density));
-            return WindowInsetsCompat.CONSUMED;
-        });
+    @Override
+    public void onBackPressed() {
+        if (viewFlipper.getDisplayedChild() != VIEW_CONNECT) {
+            showView(VIEW_CONNECT);
+        } else {
+            super.onBackPressed();
+        }
     }
 
-    private void initializeViews() {
-        requestPermissionsButton = findViewById(R.id.requestPermissionsButton);
-        startServiceButton = findViewById(R.id.startServiceButton);
-        stopServiceButton = findViewById(R.id.stopServiceButton);
-        statusText = findViewById(R.id.statusText);
-        permissionsStatusText = findViewById(R.id.permissionsStatusText);
-        technicalDetailsText = findViewById(R.id.technical_details);
+    // --- binding ---
 
-        // Bluetooth settings UI
-        bluetoothAutoStartSwitch = findViewById(R.id.bluetoothAutoStartSwitch);
-        addBluetoothDeviceButton = findViewById(R.id.addBluetoothDeviceButton);
-        bluetoothDeviceList = findViewById(R.id.bluetoothDeviceList);
+    private void bindTopBar() {
+        viewFlipper = findViewById(R.id.viewFlipper);
+        btnLeft = findViewById(R.id.btnLeft);
+        btnRight = findViewById(R.id.btnRight);
+        titleText = findViewById(R.id.titleText);
+        subtitleText = findViewById(R.id.subtitleText);
+        btnLeft.setOnClickListener(v -> showView(
+                viewFlipper.getDisplayedChild() == VIEW_CONNECT ? VIEW_SETTINGS : VIEW_CONNECT));
+        btnRight.setOnClickListener(v -> showView(VIEW_MONITOR));
+        showView(VIEW_CONNECT);
+    }
 
-        TextView header = findViewById(R.id.header);
-        final String appVersion = VersionGetter.getAppVersionName(this);
-        header.setText(String.format("%s %s", getString(R.string.app_name), appVersion));
+    private void showView(int index) {
+        viewFlipper.setDisplayedChild(index);
+        boolean connect = index == VIEW_CONNECT;
+        btnLeft.setImageResource(connect ? R.drawable.ic_gear_six : R.drawable.ic_arrow_left);
+        btnLeft.setContentDescription(getString(connect ? R.string.cd_settings : R.string.cd_back));
+        btnRight.setVisibility(connect ? View.VISIBLE : View.INVISIBLE);
+        switch (index) {
+            case VIEW_MONITOR -> {
+                titleText.setText(R.string.nav_monitor);
+                subtitleText.setVisibility(View.GONE);
+            }
+            case VIEW_SETTINGS -> {
+                titleText.setText(R.string.nav_settings);
+                subtitleText.setVisibility(View.GONE);
+            }
+            default -> {
+                titleText.setText(R.string.app_name);
+                subtitleText.setVisibility(View.VISIBLE);
+                refreshState();
+            }
+        }
+    }
+
+    private void bindConnect() {
+        powerOrb = findViewById(R.id.powerOrb);
+        statusLine = findViewById(R.id.statusLine);
+        statusSub = findViewById(R.id.statusSub);
+        signalDetail = findViewById(R.id.signalDetail);
+        satBars = findViewById(R.id.satBars);
+        connectBanner = findViewById(R.id.connectBanner);
+        bannerText = findViewById(R.id.bannerText);
+        statCard1 = findViewById(R.id.statCard1);
+        statCard2 = findViewById(R.id.statCard2);
+        statCard3 = findViewById(R.id.statCard3);
+
+        setText(statCard1, R.id.statLabel, getString(R.string.stat_satellites));
+        setText(statCard2, R.id.statLabel, getString(R.string.stat_sent));
+        setText(statCard2, R.id.statUnit, getString(R.string.unit_pkts));
+        setText(statCard3, R.id.statLabel, getString(R.string.uptime_label));
+
+        powerOrb.setOnClickListener(v -> togglePower());
+        connectBanner.setOnClickListener(v -> requestPermissions());
+        findViewById(R.id.bannerDismiss).setOnClickListener(v -> connectBanner.setVisibility(View.GONE));
 
         TextView versionText = findViewById(R.id.versionText);
         String buildLabel = getString(R.string.build_label);
-        String shownVersion = buildLabel.isEmpty() ? appVersion : buildLabel;
-        versionText.setText(String.format(getString(R.string.version_label), shownVersion));
-
-        requestPermissionsButton.setOnClickListener(v -> requestPermissions());
-        startServiceButton.setOnClickListener(v -> startGNSSService());
-        stopServiceButton.setOnClickListener(v -> stopGNSSService());
-        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("locsync-server"));
-
-        // Bluetooth settings listeners
-        bluetoothAutoStartSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Preferences.setBluetoothAutoStartEnabled(this, isChecked);
-            updateBluetoothSettingsVisibility(isChecked);
-        });
-
-        addBluetoothDeviceButton.setOnClickListener(v -> showBluetoothDevicePicker());
-
-        // Collapsible instructions
-        View instructionsHeader = findViewById(R.id.instructionsHeader);
-        TextView instructionsText = findViewById(R.id.instructionsText);
-        ImageView instructionsArrow = findViewById(R.id.instructionsArrow);
-        instructionsHeader.setOnClickListener(v -> {
-            boolean isVisible = instructionsText.getVisibility() == View.VISIBLE;
-            instructionsText.setVisibility(isVisible ? View.GONE : View.VISIBLE);
-            instructionsArrow.setRotation(isVisible ? 0f : 180f);
-        });
-
-        // Fused Location settings
-        fusedLocationSwitch = findViewById(R.id.fusedLocationSwitch);
-        fusedLocationInfo = findViewById(R.id.fusedLocationInfo);
-
-        fusedLocationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Preferences.setFusedLocationEnabled(this, isChecked);
-        });
-
-        CheckBox debugLoggingCheckbox = findViewById(R.id.debugLoggingCheckbox);
-        debugLoggingCheckbox.setChecked(Preferences.debugLoggingEnabled(this));
-        debugLoggingCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Preferences.setDebugLoggingEnabled(this, isChecked);
-            AppLog.setDebug(isChecked);
-        });
-
-        CheckBox metricsCheckbox = findViewById(R.id.metricsCheckbox);
-        TextView metricsPanelText = findViewById(R.id.metricsPanelText);
-        metricsCheckbox.setChecked(Preferences.metricsEnabled(this));
-        metricsPanelText.setVisibility(Preferences.metricsEnabled(this) ? View.VISIBLE : View.GONE);
-        metricsCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Preferences.setMetricsEnabled(this, isChecked);
-            metricsPanelText.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-        });
-
-        findViewById(R.id.exportMetricsButton).setOnClickListener(v -> shareMetricsCsv());
-
-        // Initialize settings UI
-        updateBluetoothSettingsUI();
-        updateFusedLocationSettingsUI();
+        String shown = buildLabel.isEmpty() ? appVersion : buildLabel;
+        versionText.setText(String.format(getString(R.string.version_label), shown));
     }
 
-    private void fillInterfaceList() {
-        StringBuilder sb = new StringBuilder();
-        try {
-            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
-            for (NetworkInterface intf : interfaces) {
-                String name = intf.getDisplayName();
-                if (!(name.startsWith("wlan") || name.startsWith("swlan") || name.startsWith("ap"))) {
-                    continue;
-                }
+    private void bindMonitor() {
+        monLocation = findViewById(R.id.monLocation);
+        monAltAcc = findViewById(R.id.monAltAcc);
+        logText = findViewById(R.id.logText);
+        logDot = findViewById(R.id.logDot);
+        logText.setMovementMethod(new android.text.method.ScrollingMovementMethod());
 
-                boolean nameWasShown = false;
+        setText(R.id.kvProvider, R.id.kvKey, getString(R.string.label_provider));
+        setText(R.id.kvSatellites, R.id.kvKey, getString(R.string.stat_satellites));
+        setText(R.id.kvSpeed, R.id.kvKey, getString(R.string.label_speed));
+        setText(R.id.kvBearing, R.id.kvKey, getString(R.string.label_bearing));
+        setText(R.id.kvAge, R.id.kvKey, getString(R.string.label_age));
+        setText(R.id.kvFixes, R.id.kvKey, getString(R.string.label_fixes));
+
+        setText(R.id.lhPackets, R.id.metricLabel, "Packets/s");
+        setText(R.id.lhBytes, R.id.metricLabel, "Bytes/s");
+        setText(R.id.lhMaxGap, R.id.metricLabel, "Max gap ms");
+        setText(R.id.lhAgeMean, R.id.metricLabel, "Age mean ms");
+        setText(R.id.lhAgeP95, R.id.metricLabel, "Age p95 ms");
+        setText(R.id.lhCpu, R.id.metricLabel, "CPU %");
+
+        View sparkAge = findViewById(R.id.sparkAge);
+        View sparkPkt = findViewById(R.id.sparkPkt);
+        View sparkSat = findViewById(R.id.sparkSat);
+        setText(sparkAge, R.id.sparkLabel, getString(R.string.spark_fix_age));
+        setText(sparkPkt, R.id.sparkLabel, getString(R.string.spark_packets));
+        setText(sparkSat, R.id.sparkLabel, getString(R.string.spark_satellites));
+        sparkAgeView = sparkAge.findViewById(R.id.sparkView);
+        sparkPktView = sparkPkt.findViewById(R.id.sparkView);
+        sparkSatView = sparkSat.findViewById(R.id.sparkView);
+        sparkAgeVal = sparkAge.findViewById(R.id.sparkValue);
+        sparkPktVal = sparkPkt.findViewById(R.id.sparkValue);
+        sparkSatVal = sparkSat.findViewById(R.id.sparkValue);
+
+        findViewById(R.id.logClear).setOnClickListener(v -> {
+            AppLog.clearRing();
+            renderLog();
+        });
+        findViewById(R.id.btnExportLogs).setOnClickListener(v -> exportLogs("locsync-server"));
+        findViewById(R.id.btnExportCsv).setOnClickListener(v -> shareMetricsCsv());
+    }
+
+    private void bindSettings() {
+        bindActionButton(R.id.rowPermissions, "",
+                getString(R.string.permission_fine_location) + " · " + getString(R.string.permission_coarse_location)
+                        + " · " + getString(R.string.permission_background_location),
+                getString(R.string.request_permissions_short), this::requestPermissions);
+
+        // Location provider
+        View rowFused = findViewById(R.id.rowFusedLocation);
+        setText(rowFused, R.id.row_label, getString(R.string.fused_location_enabled));
+        fusedSwitch = rowFused.findViewById(R.id.row_switch);
+        boolean supported = GNSSServerService.isFusedLocationSupported(this);
+        if (supported) {
+            fusedSwitch.setChecked(Preferences.fusedLocationEnabled(this));
+            rowFused.setOnClickListener(v -> {
+                boolean next = !fusedSwitch.isChecked();
+                fusedSwitch.setChecked(next);
+                Preferences.setFusedLocationEnabled(this, next);
+            });
+        } else {
+            fusedSwitch.setChecked(false);
+            fusedSwitch.setEnabled(false);
+            TextView sub = rowFused.findViewById(R.id.row_sub);
+            sub.setText(R.string.fused_location_not_supported);
+            sub.setVisibility(View.VISIBLE);
+        }
+
+        // Automation
+        View rowBt = findViewById(R.id.rowBluetooth);
+        setText(rowBt, R.id.row_label, getString(R.string.bluetooth_auto_start_enabled));
+        TextView btSub = rowBt.findViewById(R.id.row_sub);
+        btSub.setText(R.string.bluetooth_settings_description);
+        btSub.setVisibility(View.VISIBLE);
+        bluetoothSwitch = rowBt.findViewById(R.id.row_switch);
+        bluetoothSwitch.setChecked(Preferences.bluetoothAutoStartEnabled(this));
+        rowBt.setOnClickListener(v -> {
+            boolean next = !bluetoothSwitch.isChecked();
+            bluetoothSwitch.setChecked(next);
+            Preferences.setBluetoothAutoStartEnabled(this, next);
+        });
+        bindActionChevron(R.id.rowTriggerDevices, getString(R.string.trigger_devices),
+                triggerDevicesSummary(), this::showTriggerDevicesDialog);
+
+        // Diagnostics
+        bindToggle(R.id.rowDebug, getString(R.string.debug_logging), null,
+                Preferences.debugLoggingEnabled(this), checked -> {
+                    Preferences.setDebugLoggingEnabled(this, checked);
+                    AppLog.setDebug(checked);
+                });
+        bindToggle(R.id.rowMetrics, getString(R.string.metrics_enabled), null,
+                Preferences.metricsEnabled(this), checked -> Preferences.setMetricsEnabled(this, checked));
+        bindActionChevron(R.id.rowExportMetrics, getString(R.string.export_metrics),
+                lastMetricsFileName(), this::shareMetricsCsv);
+
+        // About
+        String buildLabel = getString(R.string.build_label);
+        String shown = buildLabel.isEmpty() ? appVersion : buildLabel;
+        bindAction(R.id.rowVersion, String.format(getString(R.string.version_label), shown),
+                getString(R.string.about_protocol), false, null);
+        bindActionChevron(R.id.rowLicense, getString(R.string.license_gpl3),
+                getString(R.string.license_view),
+                () -> startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://www.gnu.org/licenses/gpl-3.0.html"))));
+    }
+
+    // --- power / state ---
+
+    private void togglePower() {
+        if (GNSSServerService.isServiceRunning()) {
+            stopGNSSService();
+        } else {
+            startGNSSService();
+        }
+        refreshState();
+    }
+
+    private LinkState currentState() {
+        return LinkState.of(GNSSServerService.isServiceRunning(), GNSSServerService.isClientConnected());
+    }
+
+    private void refreshState() {
+        LinkState state = currentState();
+        powerOrb.setState(state);
+        if (state == LinkState.CONNECTED) {
+            if (connectedSinceElapsed == 0) connectedSinceElapsed = SystemClock.elapsedRealtime();
+        } else {
+            connectedSinceElapsed = 0;
+        }
+
+        switch (state) {
+            case CONNECTED -> {
+                statusLine.setText(R.string.notification_clients_single);
+                statusLine.setTextColor(getColor(R.color.ls_accent_400));
+                statusSub.setText(String.format(getString(R.string.sub_server_connected), uptime()));
+            }
+            case WAITING -> {
+                statusLine.setText(R.string.status_server_waiting);
+                statusLine.setTextColor(getColor(R.color.ls_accent_300));
+                statusSub.setText(String.format(getString(R.string.sub_server_waiting), serverIp(), 8887));
+            }
+            default -> {
+                statusLine.setText(R.string.status_hint_start);
+                statusLine.setTextColor(getColor(R.color.ls_text_muted));
+                statusSub.setText(R.string.subtitle_server);
+            }
+        }
+        subtitleText.setText(statusSub.getText());
+        updateBanner();
+        updateConnectReadouts();
+    }
+
+    private void updateBanner() {
+        boolean bgMissing = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED;
+        if (bgMissing) {
+            bannerText.setText(R.string.warn_background_location);
+            connectBanner.setVisibility(View.VISIBLE);
+        } else {
+            connectBanner.setVisibility(View.GONE);
+        }
+    }
+
+    private String uptime() {
+        long s = connectedSinceElapsed == 0 ? 0 : (SystemClock.elapsedRealtime() - connectedSinceElapsed) / 1000;
+        return String.format(getString(R.string.uptime_format), s / 60, s % 60);
+    }
+
+    private void updateConnectReadouts() {
+        boolean connected = currentState() == LinkState.CONNECTED;
+        int textColor = getColor(R.color.ls_text);
+        int dimColor = getColor(R.color.ls_text_dim);
+        int sats = GNSSServerService.currentSatelliteCount();
+
+        if (connected) {
+            setStat(statCard1, String.valueOf(sats), textColor);
+            setStat(statCard2, fmt1(mPktSent), textColor);
+            setStat(statCard3, uptime(), textColor);
+            setText(statCard3, R.id.statUnit, Double.isNaN(mBytesSent) ? "" :
+                    String.format(Locale.US, "%.1f %s", mBytesSent / 1024.0, getString(R.string.unit_kbs)));
+            signalDetail.setText(String.format(getString(R.string.section_signal_fix),
+                    sats, sats, getString(R.string.fix_3d)));
+            satBars.setData(sats, null);
+        } else {
+            String none = getString(R.string.value_none);
+            setStat(statCard1, none, dimColor);
+            setStat(statCard2, none, dimColor);
+            setStat(statCard3, none, dimColor);
+            setText(statCard3, R.id.statUnit, "");
+            signalDetail.setText(none);
+            satBars.clear();
+        }
+    }
+
+    private void setStat(View card, String value, int color) {
+        TextView v = card.findViewById(R.id.statValue);
+        v.setText(value);
+        v.setTextColor(color);
+    }
+
+    // --- monitor readouts ---
+
+    private void updateMonitorLocation() {
+        boolean connected = currentState() == LinkState.CONNECTED;
+        LocationProto.LocationUpdate loc = connected ? GNSSServerService.currentLocationUpdate() : null;
+        String none = getString(R.string.value_none);
+        if (loc == null) {
+            monLocation.setText(none);
+            monAltAcc.setText("");
+            setText(R.id.kvProvider, R.id.kvValue, none);
+            setText(R.id.kvSatellites, R.id.kvValue, none);
+            setText(R.id.kvSpeed, R.id.kvValue, none);
+            setText(R.id.kvBearing, R.id.kvValue, none);
+            setText(R.id.kvAge, R.id.kvValue, none);
+            setText(R.id.kvFixes, R.id.kvValue, none);
+            return;
+        }
+        monLocation.setText(String.format(getString(R.string.location_format), loc.getLatitude(), loc.getLongitude()));
+        StringBuilder alt = new StringBuilder();
+        alt.append(String.format(getString(R.string.altitude_format), loc.getAltitude()));
+        alt.append(String.format(getString(R.string.location_accuracy_format), loc.getAccuracy()));
+        monAltAcc.setText(alt.toString().trim());
+        setText(R.id.kvProvider, R.id.kvValue, loc.getProvider().isEmpty() ? getString(R.string.unknown) : loc.getProvider());
+        setText(R.id.kvSatellites, R.id.kvValue, String.valueOf(GNSSServerService.currentSatelliteCount()));
+        setText(R.id.kvSpeed, R.id.kvValue, String.format(getString(R.string.speed_format), loc.getSpeed()));
+        setText(R.id.kvBearing, R.id.kvValue, String.format(getString(R.string.bearing_format), loc.getBearing()));
+        setText(R.id.kvAge, R.id.kvValue, String.format(getString(R.string.age_format), loc.getLocationAge()));
+        setText(R.id.kvFixes, R.id.kvValue, Double.isNaN(mFixes) ? none : String.format(getString(R.string.fixes_format), mFixes));
+    }
+
+    private void updateMonitorMetrics() {
+        boolean connected = currentState() == LinkState.CONNECTED;
+        setText(R.id.lhPackets, R.id.metricValue, connected ? fmt1(mPktSent) : none());
+        setText(R.id.lhBytes, R.id.metricValue, connected ? fmt0(mBytesSent) : none());
+        setText(R.id.lhMaxGap, R.id.metricValue, connected ? fmt0(mMaxGap) : none());
+        setText(R.id.lhAgeMean, R.id.metricValue, connected ? fmt0(mAgeMean) : none());
+        setText(R.id.lhAgeP95, R.id.metricValue, connected ? fmt0(mAgeP95) : none());
+        setText(R.id.lhCpu, R.id.metricValue, fmt0(mCpu));
+        sparkAgeVal.setText(fmt0(mAgeMean));
+        sparkPktVal.setText(fmt1(mPktSent));
+        sparkSatVal.setText(String.valueOf(GNSSServerService.currentSatelliteCount()));
+    }
+
+    private void renderLog() {
+        List<AppLog.Entry> entries = AppLog.snapshot();
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        int max = Math.min(entries.size(), 120);
+        for (int i = 0; i < max; i++) {
+            AppLog.Entry e = entries.get(i);
+            int start = sb.length();
+            sb.append(logTime.format(e.timeMillis)).append(' ');
+            span(sb, start, sb.length(), getColor(R.color.ls_text_dim));
+            int ls = sb.length();
+            sb.append(e.level).append(' ');
+            span(sb, ls, sb.length(), levelColor(e.level));
+            sb.append(e.message).append('\n');
+        }
+        logText.setText(sb);
+    }
+
+    private int levelColor(char level) {
+        return switch (level) {
+            case 'I' -> getColor(R.color.ls_accent_400);
+            case 'W' -> getColor(R.color.ls_error);
+            default -> getColor(R.color.ls_log_debug);
+        };
+    }
+
+    private void span(SpannableStringBuilder sb, int start, int end, int color) {
+        sb.setSpan(new ForegroundColorSpan(color), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
+    private ObjectAnimator dotAnimator;
+    private void blinkLogDot() {
+        boolean running = GNSSServerService.isServiceRunning();
+        if (running && dotAnimator == null) {
+            dotAnimator = ObjectAnimator.ofFloat(logDot, "alpha", 1f, 0.2f);
+            dotAnimator.setDuration(1400);
+            dotAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+            dotAnimator.setRepeatMode(ObjectAnimator.REVERSE);
+            dotAnimator.start();
+        } else if (!running && dotAnimator != null) {
+            dotAnimator.cancel();
+            dotAnimator = null;
+            logDot.setAlpha(0.3f);
+        }
+    }
+
+    private String serverIp() {
+        try {
+            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                String name = intf.getDisplayName();
+                if (!(name.startsWith("wlan") || name.startsWith("swlan") || name.startsWith("ap"))) continue;
                 for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
-                    if (addr.isLoopbackAddress()) {
-                        continue;
-                    }
-                    String sAddr = addr.getHostAddress();
-                    if (sAddr == null || sAddr.contains(":")) {
-                        continue;
-                    }
-                    if (!nameWasShown) {
-                        String displayName = switch (name) {
-                            case "wlan0" ->
-                                    String.format("%s (%s)", name, getString(R.string.interface_wifi));
-                            case "wlan1", "wlan2", "swlan0", "ap0" ->
-                                    String.format("%s (%s)", name, getString(R.string.interface_hotspot));
-                            default -> name;
-                        };
-                        sb.append("  • ");
-                        sb.append(displayName);
-                        sb.append(":\n");
-                        nameWasShown = true;
-                    }
-                    sb.append("    - ");
-                    sb.append(sAddr);
-                    sb.append("\n");
+                    String s = addr.getHostAddress();
+                    if (!addr.isLoopbackAddress() && s != null && !s.contains(":")) return s;
                 }
             }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to fill interface list", e);
+        } catch (Exception e) {
+            AppLog.d(TAG, "serverIp failed: " + e.getMessage());
         }
+        return "192.168.43.1";
+    }
 
-        if (sb.length() == 0) {
-            sb.append("  ");
-            sb.append(getString(R.string.interface_none));
-            sb.append("\n");
+    // --- permissions (behaviour preserved) ---
+
+    private void refreshPermissions() {
+        boolean allGranted = true;
+        List<String> missing = new ArrayList<>();
+        for (String p : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                missing.add(getPermissionName(p));
+            }
         }
-
-        technicalDetailsText.setText(String.format(getString(R.string.technical_details), sb));
-    }
-
-    private void startGNSSService() {
-        // Mark service as permanently enabled
-        GNSSServerService.setServiceEnabled(this, true);
-
-        Intent serviceIntent = new Intent(this, GNSSServerService.class);
-        ContextCompat.startForegroundService(this, serviceIntent);
-
-        updateUIState(true);
-    }
-
-    private void stopGNSSService() {
-        // Mark service as permanently disabled
-        GNSSServerService.setServiceEnabled(this, false);
-
-        Intent serviceIntent = new Intent(this, GNSSServerService.class);
-        stopService(serviceIntent);
-
-        updateUIState(false);
-    }
-
-    private void updateUIState(boolean serviceRunning) {
-        if (serviceRunning) {
-            startServiceButton.setEnabled(false);
-            stopServiceButton.setEnabled(true);
-            statusText.setText(R.string.service_running);
-            statusText.setTextColor(getResources().getColor(android.R.color.holo_green_dark, null));
+        View row = findViewById(R.id.rowPermissions);
+        TextView label = row.findViewById(R.id.row_label);
+        TextView button = row.findViewById(R.id.row_button);
+        if (allGranted) {
+            label.setText(R.string.all_permissions_granted);
+            button.setVisibility(View.GONE);
         } else {
-            startServiceButton.setEnabled(true);
-            stopServiceButton.setEnabled(false);
-            statusText.setText(R.string.service_stopped);
-            statusText.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
+            label.setText(String.format(getString(R.string.missing_permissions), String.join(", ", missing)));
+            button.setVisibility(View.VISIBLE);
         }
+        updateBanner();
+    }
+
+    private String getPermissionName(String permission) {
+        return switch (permission) {
+            case Manifest.permission.ACCESS_FINE_LOCATION -> getString(R.string.permission_fine_location);
+            case Manifest.permission.ACCESS_COARSE_LOCATION -> getString(R.string.permission_coarse_location);
+            case Manifest.permission.ACCESS_BACKGROUND_LOCATION -> getString(R.string.permission_background_location);
+            default -> permission.substring(permission.lastIndexOf('.') + 1);
+        };
     }
 
     private void requestPermissions() {
-        // Step 1: ensure foreground location is granted first.
-        // On Android 11+ background location MUST be requested in a separate dialog
-        // AFTER foreground is granted — otherwise the system silently denies the request.
         List<String> foregroundToRequest = new ArrayList<>();
         for (String permission : FOREGROUND_LOCATION_PERMISSIONS) {
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                 foregroundToRequest.add(permission);
             }
         }
-
         if (!foregroundToRequest.isEmpty()) {
             permissionLauncher.launch(foregroundToRequest.toArray(new String[0]));
             return;
         }
-
-        // Step 2: foreground granted — request background location if missing.
         requestBackgroundLocationIfNeeded();
     }
 
@@ -414,224 +656,67 @@ public class MainActivity extends AppCompatActivity {
                 != PackageManager.PERMISSION_GRANTED) {
             backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
         } else {
-            // Everything granted — proceed to battery optimization step
             checkBatteryOptimization();
         }
     }
 
     @SuppressLint("BatteryLife")
     private void checkBatteryOptimization() {
-        Intent intent = new Intent();
         String packageName = getPackageName();
         if (!Settings.System.canWrite(this)) {
-            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + packageName));
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + packageName));
             batteryOptimizationLauncher.launch(intent);
         } else {
-            updatePermissionsStatus();
+            refreshPermissions();
         }
     }
 
-    private void updatePermissionsStatus() {
-        boolean allPermissionsGranted = true;
-        List<String> missingPermissions = new ArrayList<>();
+    // --- service control (behaviour preserved) ---
 
-        for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allPermissionsGranted = false;
-                missingPermissions.add(getPermissionName(permission));
-            }
-        }
-
-        // TODO: Check [PowerManager.isIgnoringBatteryOptimizations(packageName)]
-
-        if (allPermissionsGranted) {
-            permissionsStatusText.setText(R.string.all_permissions_granted);
-            permissionsStatusText.setTextColor(getResources().getColor(android.R.color.holo_green_dark, null));
-            requestPermissionsButton.setVisibility(View.GONE);
-        } else {
-            String statusText = String.format(getString(R.string.missing_permissions), String.join(", ", missingPermissions));
-            permissionsStatusText.setText(statusText);
-            permissionsStatusText.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
-            requestPermissionsButton.setVisibility(View.VISIBLE);
-        }
+    private void startGNSSService() {
+        GNSSServerService.setServiceEnabled(this, true);
+        ContextCompat.startForegroundService(this, new Intent(this, GNSSServerService.class));
+        Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
     }
 
-    private String getPermissionName(String permission) {
-        return switch (permission) {
-            case Manifest.permission.ACCESS_FINE_LOCATION ->
-                    getString(R.string.permission_fine_location);
-            case Manifest.permission.ACCESS_COARSE_LOCATION ->
-                    getString(R.string.permission_coarse_location);
-            case Manifest.permission.ACCESS_BACKGROUND_LOCATION ->
-                    getString(R.string.permission_background_location);
-            default -> permission.substring(permission.lastIndexOf('.') + 1);
-        };
+    private void stopGNSSService() {
+        GNSSServerService.setServiceEnabled(this, false);
+        stopService(new Intent(this, GNSSServerService.class));
+        connectedSinceElapsed = 0;
+        Toast.makeText(this, getString(R.string.toast_service_disabled), Toast.LENGTH_LONG).show();
     }
 
-    /**
-     * Export logs to a file and share it
-     */
-    private void exportLogs(String appName) {
-        // Show progress
-        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_in_progress, Toast.LENGTH_SHORT).show();
+    // --- bluetooth trigger devices (behaviour preserved) ---
 
-        // Run in background to avoid blocking UI
-        new Thread(() -> {
-            try {
-                // Export logs to a file
-                File logFile = LogExporter.exportLogs(this, appName);
-
-                // Clean up old logs
-                LogExporter.cleanupOldLogs(this, appName);
-
-                // Update UI on main thread
-                runOnUiThread(() -> {
-                    if (logFile != null) {
-                        // Share the log file
-                        shareLogFile(logFile);
-                        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_success, Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_no_logs, Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            } catch (Exception e) {
-                Log.e(TAG, "Error exporting logs", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this,
-                                String.format(getString(goodvin.locsync.logexporter.R.string.export_logs_error), e.getMessage()),
-                                Toast.LENGTH_LONG).show()
-                );
-            }
-        }).start();
-    }
-
-    /**
-     * Share the log file using an intent
-     */
-    private void shareLogFile(File logFile) {
-        try {
-            // Get URI using FileProvider
-            Uri fileUri = FileProvider.getUriForFile(
-                    this,
-                    getPackageName() + ".fileprovider",
-                    logFile
-            );
-
-            // Create share intent
-            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType("text/plain");
-            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            // Start the share activity
-            startActivity(Intent.createChooser(
-                    shareIntent,
-                    getString(goodvin.locsync.logexporter.R.string.share_logs)
-            ));
-        } catch (Exception e) {
-            Log.e(TAG, "Error sharing log file", e);
-            Toast.makeText(this,
-                    String.format(getString(goodvin.locsync.logexporter.R.string.export_logs_error), e.getMessage()),
-                    Toast.LENGTH_LONG).show();
-        }
-    }
-
-    /**
-     * Share the metrics CSV file using an intent
-     */
-    private void shareMetricsCsv() {
-        File csv = MetricsCsvWriter.fileFor(new File(getCacheDir(), "logs"), "server");
-        if (!csv.exists() || csv.length() == 0) {
-            Toast.makeText(this, R.string.metrics_export_none, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", csv);
-            Intent share = new Intent(Intent.ACTION_SEND)
-                    .setType("text/csv")
-                    .putExtra(Intent.EXTRA_STREAM, uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(share, getString(R.string.export_metrics)));
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to share metrics CSV", e);
-        }
-    }
-
-    // Bluetooth Settings Methods
-
-    private void updateBluetoothSettingsUI() {
-        boolean autoStartEnabled = Preferences.bluetoothAutoStartEnabled(this);
-        bluetoothAutoStartSwitch.setChecked(autoStartEnabled);
-        updateBluetoothSettingsVisibility(autoStartEnabled);
-        updateBluetoothDeviceList();
-    }
-
-    private void updateBluetoothSettingsVisibility(boolean enabled) {
-        int visibility = enabled ? View.VISIBLE : View.GONE;
-        addBluetoothDeviceButton.setVisibility(visibility);
-        bluetoothDeviceList.setVisibility(visibility);
-    }
-
-    private void updateBluetoothDeviceList() {
-        bluetoothDeviceList.removeAllViews();
+    private String triggerDevicesSummary() {
         Map<String, String> devices = Preferences.getBluetoothTriggerDeviceNames(this);
-        for (Map.Entry<String, String> entry : devices.entrySet()) {
-            String mac = entry.getKey();
-            String name = entry.getValue();
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(0, 4, 0, 4);
-
-            TextView nameView = new TextView(this);
-            nameView.setText(name);
-            nameView.setTextSize(15);
-            nameView.setTextColor(getResources().getColor(R.color.text_primary, null));
-            LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            nameView.setLayoutParams(nameParams);
-
-            Button removeButton = newRemoveButton(mac);
-
-            row.addView(nameView);
-            row.addView(removeButton);
-            bluetoothDeviceList.addView(row);
-        }
+        if (devices.isEmpty()) return "";
+        return String.join(", ", devices.values());
     }
 
-    @NonNull
-    private Button newRemoveButton(String mac) {
-        Button removeButton = new Button(this, null, android.R.attr.buttonStyleSmall);
-        removeButton.setText("\u2715");
-        removeButton.setTextSize(12);
-        removeButton.setMinimumWidth(0);
-        removeButton.setMinWidth(0);
-        removeButton.setMinimumHeight(0);
-        removeButton.setMinHeight(0);
-        int pad = (int) (8 * getResources().getDisplayMetrics().density);
-        removeButton.setPadding(pad, pad, pad, pad);
-        removeButton.setOnClickListener(v -> {
-            Preferences.removeBluetoothTriggerDevice(this, mac);
-            updateBluetoothDeviceList();
-        });
-        return removeButton;
+    private void showTriggerDevicesDialog() {
+        Map<String, String> devices = new LinkedHashMap<>(Preferences.getBluetoothTriggerDeviceNames(this));
+        List<String> macs = new ArrayList<>(devices.keySet());
+        List<String> names = new ArrayList<>(devices.values());
+        String[] items = names.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.trigger_devices)
+                .setItems(items, (dialog, which) -> confirmRemoveDevice(macs.get(which), names.get(which)))
+                .setPositiveButton(R.string.add_bluetooth_device, (d, w) -> showBluetoothDevicePicker())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
-    // Fused Location Settings Methods
-
-    private void updateFusedLocationSettingsUI() {
-        boolean supported = GNSSServerService.isFusedLocationSupported(this);
-        if (supported) {
-            fusedLocationSwitch.setEnabled(true);
-            fusedLocationSwitch.setChecked(Preferences.fusedLocationEnabled(this));
-            fusedLocationInfo.setVisibility(View.GONE);
-        } else {
-            fusedLocationSwitch.setEnabled(false);
-            fusedLocationSwitch.setChecked(false);
-            fusedLocationInfo.setVisibility(View.VISIBLE);
-        }
+    private void confirmRemoveDevice(String mac, String name) {
+        new AlertDialog.Builder(this)
+                .setMessage(name)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    Preferences.removeBluetoothTriggerDevice(this, mac);
+                    setText(findViewById(R.id.rowTriggerDevices), R.id.row_sub, triggerDevicesSummary());
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private boolean hasBluetoothPermissions() {
@@ -645,41 +730,30 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void requestBluetoothPermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            bluetoothPermissionLauncher.launch(BLUETOOTH_PERMISSIONS);
-        }
-    }
-
     private void showBluetoothDevicePicker() {
         if (!hasBluetoothPermissions()) {
-            requestBluetoothPermissions();
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                bluetoothPermissionLauncher.launch(BLUETOOTH_PERMISSIONS);
+            }
             return;
         }
-
         BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
         BluetoothAdapter bluetoothAdapter = bluetoothManager != null ? bluetoothManager.getAdapter() : null;
-
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
             Toast.makeText(this, "Bluetooth is not available or not enabled", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        Set<BluetoothDevice> pairedDevices;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                requestBluetoothPermissions();
-                return;
-            }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED) {
+            bluetoothPermissionLauncher.launch(BLUETOOTH_PERMISSIONS);
+            return;
         }
-        pairedDevices = bluetoothAdapter.getBondedDevices();
-
+        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
         if (pairedDevices.isEmpty()) {
             Toast.makeText(this, R.string.bluetooth_no_paired_devices, Toast.LENGTH_SHORT).show();
             return;
         }
-
-        // Filter out already-added devices
         Set<String> existingMacs = Preferences.getBluetoothTriggerDeviceMacs(this);
         List<String> availableNames = new ArrayList<>();
         List<String> availableAddresses = new ArrayList<>();
@@ -690,22 +764,139 @@ public class MainActivity extends AppCompatActivity {
                 availableAddresses.add(device.getAddress());
             }
         }
-
         if (availableNames.isEmpty()) {
             Toast.makeText(this, R.string.bluetooth_all_devices_added, Toast.LENGTH_SHORT).show();
             return;
         }
-
         String[] names = availableNames.toArray(new String[0]);
         String[] addresses = availableAddresses.toArray(new String[0]);
-
         new AlertDialog.Builder(this)
                 .setTitle(R.string.bluetooth_add_device_title)
                 .setItems(names, (dialog, which) -> {
                     Preferences.addBluetoothTriggerDevice(this, addresses[which], names[which]);
-                    updateBluetoothDeviceList();
+                    setText(findViewById(R.id.rowTriggerDevices), R.id.row_sub, triggerDevicesSummary());
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    // --- exports (behaviour preserved) ---
+
+    private String lastMetricsFileName() {
+        File csv = MetricsCsvWriter.fileFor(new File(getCacheDir(), "logs"), "server");
+        return (csv.exists() && csv.length() > 0) ? csv.getName() : "";
+    }
+
+    private void exportLogs(String appName) {
+        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_in_progress, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                File logFile = LogExporter.exportLogs(this, appName);
+                LogExporter.cleanupOldLogs(this, appName);
+                runOnUiThread(() -> {
+                    if (logFile != null) {
+                        shareFile(logFile, "text/plain", getString(goodvin.locsync.logexporter.R.string.share_logs));
+                        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_success, Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, goodvin.locsync.logexporter.R.string.export_logs_no_logs, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error exporting logs", e);
+                runOnUiThread(() -> Toast.makeText(this,
+                        String.format(getString(goodvin.locsync.logexporter.R.string.export_logs_error), e.getMessage()),
+                        Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    private void shareMetricsCsv() {
+        File csv = MetricsCsvWriter.fileFor(new File(getCacheDir(), "logs"), "server");
+        if (!csv.exists() || csv.length() == 0) {
+            Toast.makeText(this, R.string.metrics_export_none, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        shareFile(csv, "text/csv", getString(R.string.export_metrics));
+    }
+
+    private void shareFile(File file, String mime, String chooserTitle) {
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+            Intent share = new Intent(Intent.ACTION_SEND).setType(mime)
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, chooserTitle));
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to share file", e);
+        }
+    }
+
+    // --- small view helpers ---
+
+    private String none() { return getString(R.string.value_none); }
+
+    private static String fmt0(double v) {
+        return Double.isNaN(v) ? "—" : String.format(Locale.US, "%.0f", v);
+    }
+
+    private static String fmt1(double v) {
+        return Double.isNaN(v) ? "—" : String.format(Locale.US, "%.1f", v);
+    }
+
+    private void setText(int rootId, int childId, CharSequence text) {
+        setText(findViewById(rootId), childId, text);
+    }
+
+    private void setText(View root, int childId, CharSequence text) {
+        TextView tv = root.findViewById(childId);
+        if (tv != null) tv.setText(text);
+    }
+
+    private void bindToggle(int rowId, String label, String sub, boolean checked,
+                            java.util.function.Consumer<Boolean> onChange) {
+        View row = findViewById(rowId);
+        setText(row, R.id.row_label, label);
+        TextView subView = row.findViewById(R.id.row_sub);
+        if (sub != null) {
+            subView.setText(sub);
+            subView.setVisibility(View.VISIBLE);
+        }
+        Switch sw = row.findViewById(R.id.row_switch);
+        sw.setChecked(checked);
+        row.setOnClickListener(v -> {
+            boolean next = !sw.isChecked();
+            sw.setChecked(next);
+            onChange.accept(next);
+        });
+    }
+
+    private void bindAction(int rowId, String label, String sub, boolean chevron, Runnable click) {
+        View row = findViewById(rowId);
+        setText(row, R.id.row_label, label);
+        TextView subView = row.findViewById(R.id.row_sub);
+        if (sub != null && !sub.isEmpty()) {
+            subView.setText(sub);
+            subView.setVisibility(View.VISIBLE);
+        }
+        if (chevron) row.findViewById(R.id.row_chevron).setVisibility(View.VISIBLE);
+        if (click != null) row.setOnClickListener(v -> click.run());
+    }
+
+    private void bindActionChevron(int rowId, String label, String sub, Runnable click) {
+        bindAction(rowId, label, sub, true, click);
+    }
+
+    private void bindActionButton(int rowId, String label, String sub, String buttonLabel, Runnable buttonClick) {
+        View row = findViewById(rowId);
+        if (!label.isEmpty()) setText(row, R.id.row_label, label);
+        TextView subView = row.findViewById(R.id.row_sub);
+        if (sub != null && !sub.isEmpty()) {
+            subView.setText(sub);
+            subView.setVisibility(View.VISIBLE);
+        }
+        TextView button = row.findViewById(R.id.row_button);
+        button.setText(buttonLabel);
+        button.setVisibility(View.VISIBLE);
+        button.setOnClickListener(v -> buttonClick.run());
     }
 }
