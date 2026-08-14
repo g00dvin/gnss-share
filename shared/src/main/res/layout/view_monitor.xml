@@ -55,26 +55,26 @@
 
                 <LinearLayout style="@style/LsKvRow">
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvProvider"
-                        android:layout_width="0dp" android:layout_weight="1" />
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvSatellites"
-                        android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_marginStart="16dp" />
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="16dp" />
                 </LinearLayout>
 
                 <LinearLayout style="@style/LsKvRow">
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvSpeed"
-                        android:layout_width="0dp" android:layout_weight="1" />
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvBearing"
-                        android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_marginStart="16dp" />
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="16dp" />
                 </LinearLayout>
 
                 <LinearLayout style="@style/LsKvRow">
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvAge"
-                        android:layout_width="0dp" android:layout_weight="1" />
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
                     <include layout="@layout/ls_kv_cell" android:id="@+id/kvFixes"
-                        android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_marginStart="16dp" />
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="16dp" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
@@ -93,23 +93,23 @@
 
         <LinearLayout style="@style/LsMetricRow">
             <include layout="@layout/ls_metric_card" android:id="@+id/lhPackets"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
             <include layout="@layout/ls_metric_card" android:id="@+id/lhBytes"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
         </LinearLayout>
 
         <LinearLayout style="@style/LsMetricRow">
             <include layout="@layout/ls_metric_card" android:id="@+id/lhMaxGap"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
             <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeMean"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
         </LinearLayout>
 
         <LinearLayout style="@style/LsMetricRow">
             <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeP95"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
             <include layout="@layout/ls_metric_card" android:id="@+id/lhCpu"
-                android:layout_width="0dp" android:layout_weight="1" />
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
         </LinearLayout>
 
         <!-- 3. Sparklines -->
