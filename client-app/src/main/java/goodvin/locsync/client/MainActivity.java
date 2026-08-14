@@ -766,7 +766,6 @@ public class MainActivity extends AppCompatActivity {
             AutostartScheduler.schedule(this);
         }
         ensureBatteryOptimizationExemption();
-        Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
     }
 
     private void stopGNSSService() {
@@ -774,7 +773,6 @@ public class MainActivity extends AppCompatActivity {
         AutostartScheduler.cancel(this);
         stopService(new Intent(this, GNSSClientService.class));
         connectedSinceElapsed = 0;
-        Toast.makeText(this, getString(R.string.toast_service_disabled), Toast.LENGTH_LONG).show();
     }
 
     @SuppressLint("BatteryLife")

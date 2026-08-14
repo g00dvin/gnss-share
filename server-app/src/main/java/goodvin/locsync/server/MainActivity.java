@@ -680,14 +680,12 @@ public class MainActivity extends AppCompatActivity {
     private void startGNSSService() {
         GNSSServerService.setServiceEnabled(this, true);
         ContextCompat.startForegroundService(this, new Intent(this, GNSSServerService.class));
-        Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
     }
 
     private void stopGNSSService() {
         GNSSServerService.setServiceEnabled(this, false);
         stopService(new Intent(this, GNSSServerService.class));
         connectedSinceElapsed = 0;
-        Toast.makeText(this, getString(R.string.toast_service_disabled), Toast.LENGTH_LONG).show();
     }
 
     // --- bluetooth trigger devices (behaviour preserved) ---
