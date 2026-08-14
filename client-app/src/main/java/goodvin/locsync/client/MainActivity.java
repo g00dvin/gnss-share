@@ -74,6 +74,11 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "GNSSClientActivity";
     private static final int VIEW_CONNECT = 0, VIEW_MONITOR = 1, VIEW_SETTINGS = 2;
 
+    // Head units have large, low-density screens where dp-sized UI reads tiny. Scale the whole UI
+    // (dp + sp uniformly) by raising the effective density on large screens; phones are untouched.
+    private static final float LARGE_SCREEN_UI_SCALE = 2.0f;
+    private static final int LARGE_SCREEN_MIN_SW_DP = 600;
+
     private static final String[] REQUIRED_PERMISSIONS = {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -192,6 +197,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        android.content.res.Configuration config =
+                new android.content.res.Configuration(base.getResources().getConfiguration());
+        if (config.smallestScreenWidthDp >= LARGE_SCREEN_MIN_SW_DP) {
+            config.densityDpi = Math.round(config.densityDpi * LARGE_SCREEN_UI_SCALE);
+            base = base.createConfigurationContext(config);
+        }
+        super.attachBaseContext(base);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
