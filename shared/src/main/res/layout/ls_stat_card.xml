@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright © 2025-2026 Dezz (https://github.com/DezzK). GPLv3. See <https://www.gnu.org/licenses/>. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_card"
+    android:orientation="vertical"
+    android:padding="11dp">
+
+    <TextView
+        android:id="@+id/statLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.10"
+        android:textAllCaps="true"
+        android:textColor="@color/ls_text_dim"
+        android:textSize="10sp" />
+
+    <TextView
+        android:id="@+id/statValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="@string/value_none"
+        android:textColor="@color/ls_text_dim"
+        android:textSize="17sp" />
+
+    <TextView
+        android:id="@+id/statUnit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/ls_text_dim"
+        android:textSize="10sp" />
+</LinearLayout>

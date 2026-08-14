@@ -1,415 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-
+<!-- Copyright © 2025-2026 Dezz (https://github.com/DezzK). GPLv3. See <https://www.gnu.org/licenses/>. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
+    android:background="@color/ls_bg"
+    android:fitsSystemWindows="true"
     android:orientation="vertical">
 
-    <!-- Header -->
-    <TextView
-        android:id="@+id/statusText"
+    <!-- Top bar -->
+    <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:background="@color/header_background"
-        android:paddingVertical="12dp"
-        android:paddingHorizontal="24dp"
-        android:text="@string/app_name"
-        android:textColor="@color/text_primary"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="10dp">
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        <ImageView
+            android:id="@+id/btnLeft"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_icon_ripple"
+            android:contentDescription="@string/cd_settings"
+            android:padding="8dp"
+            android:src="@drawable/ic_gear_six"
+            android:tint="@color/ls_text" />
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="@color/background"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_marginHorizontal="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <!-- Connection Status Card -->
-            <LinearLayout
+            <TextView
+                android:id="@+id/titleText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:background="@color/card_background"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.01"
+                android:singleLine="true"
+                android:text="@string/app_name"
+                android:textColor="@color/ls_text"
+                android:textSize="15sp" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/connection_status_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/connectionText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/connection_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/dataAgeText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/data_age_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- Permissions Section -->
-            <LinearLayout
-                android:id="@+id/permissionsSection"
+            <TextView
+                android:id="@+id/subtitleText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:background="@color/card_background"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/permission_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/permissionsStatusText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/checking_permissions"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/mockLocationStatusText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:textSize="14sp"
-                    android:textColor="@android:color/holo_red_light"
-                    android:visibility="gone" />
-
-                <Button
-                    android:id="@+id/requestPermissionsButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:backgroundTint="#FF9800"
-                    android:padding="12dp"
-                    android:text="@string/request_permissions"
-                    android:textColor="#ffffff"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <!-- IP Selection Section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:background="@color/card_background"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/select_server_address_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <RadioGroup
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent">
-
-                    <RadioButton
-                        android:id="@+id/connectToGatewayIpRadioButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/auto_discover_server"
-                        android:checked="true" />
-                    <RadioButton
-                        android:id="@+id/setIpManuallyRadioButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/set_hostname_or_ip_address_manually" />
-                </RadioGroup>
-                <TextView
-                    android:id="@+id/serverIpEditLabel"
-                    android:labelFor="@id/serverIpEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/editServerIp"
-                    android:textSize="14sp"
-                    android:enabled="false" />
-                <EditText
-                    android:id="@+id/serverIpEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:autofillHints="ip"
-                    android:ems="10"
-                    android:inputType="text"
-                    android:enabled="false"
-                    android:text="192.168.43.1"
-                    tools:ignore="HardcodedText" />
-            </LinearLayout>
-
-            <!-- Service Control Section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:background="@color/card_background"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/service_status_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/serviceStatusText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/service_stopped"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/autostartDiagText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
-
-                <!-- Control Buttons -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/startServiceButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#4CAF50"
-                        android:padding="12dp"
-                        android:text="@string/enable_service"
-                        android:textColor="#ffffff"
-                        android:textSize="14sp"
-                        tools:ignore="ButtonStyle" />
-
-                    <Button
-                        android:id="@+id/stopServiceButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#f44336"
-                        android:enabled="false"
-                        android:padding="12dp"
-                        android:text="@string/disable_service"
-                        android:textColor="#ffffff"
-                        android:textSize="14sp"
-                        tools:ignore="ButtonStyle" />
-
-                    <Button
-                        android:id="@+id/exportLogsButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#2196F3"
-                        android:padding="12dp"
-                        android:text="@string/export_logs"
-                        android:textColor="#ffffff"
-                        android:textSize="14sp"
-                        tools:ignore="ButtonStyle" />
-                </LinearLayout>
-
-                <CheckBox
-                    android:id="@+id/staticJitterCheckbox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/static_jitter"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <CheckBox
-                    android:id="@+id/debugLoggingCheckbox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/debug_logging"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <CheckBox
-                    android:id="@+id/metricsCheckbox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/metrics_enabled"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/metricsPanelText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
-
-                <Button
-                    android:id="@+id/exportMetricsButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/export_metrics" />
-            </LinearLayout>
-
-            <!-- Location Information Card -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:background="@color/card_background"
-                android:elevation="2dp"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/location_information_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/locationText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:fontFamily="monospace"
-                    android:text="@string/location_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/additionalInfoText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:text="@string/movement_speed"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/providerText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:text="@string/provider_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/satellitesText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:text="@string/satellites_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-
-                <TextView
-                    android:id="@+id/ageText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/age_status"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
-            </LinearLayout>
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textColor="@color/ls_text_dim"
+                android:textSize="11sp" />
         </LinearLayout>
-    </ScrollView>
 
-    <!-- App version -->
-    <TextView
-        android:id="@+id/versionText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="6dp"
-        android:paddingBottom="2dp"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/btnRight"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_icon_ripple"
+            android:contentDescription="@string/cd_monitor"
+            android:padding="8dp"
+            android:src="@drawable/ic_chart_line"
+            android:tint="@color/ls_text" />
+    </LinearLayout>
 
-    <!-- Copyright notice -->
-    <TextView
+    <ViewFlipper
+        android:id="@+id/viewFlipper"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/card_background"
-        android:gravity="center"
-        android:linksClickable="true"
-        android:padding="8dp"
-        android:text="@string/copyright_notice"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <include layout="@layout/view_connect" android:id="@+id/viewConnect" />
+        <include layout="@layout/view_monitor" android:id="@+id/viewMonitor" />
+        <include layout="@layout/view_settings" android:id="@+id/viewSettings" />
+    </ViewFlipper>
 </LinearLayout>

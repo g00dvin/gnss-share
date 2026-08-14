@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright © 2025-2026 Dezz (https://github.com/DezzK). GPLv3. See <https://www.gnu.org/licenses/>. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:background="@drawable/bg_card"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/sparkLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:letterSpacing="0.10"
+            android:textAllCaps="true"
+            android:textColor="@color/ls_text_dim"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/sparkValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:text="@string/value_none"
+            android:textColor="@color/ls_accent_300"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <goodvin.locsync.shared.SparklineView
+        android:id="@+id/sparkView"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="8dp" />
+</LinearLayout>

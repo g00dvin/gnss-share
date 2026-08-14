@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright © 2025-2026 Dezz (https://github.com/DezzK). GPLv3. See <https://www.gnu.org/licenses/>. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="11dp">
+
+    <TextView
+        android:id="@+id/row_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:fontFamily="sans-serif"
+        android:textColor="@color/ls_text_dim"
+        android:textSize="11.5sp" />
+
+    <EditText
+        android:id="@+id/row_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="36dp"
+        android:background="@drawable/bg_input"
+        android:fontFamily="monospace"
+        android:inputType="text"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:textColor="@color/ls_text"
+        android:textColorHint="@color/ls_text_dim"
+        android:textSize="14sp" />
+</LinearLayout>

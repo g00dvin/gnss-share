@@ -95,6 +95,17 @@ public class Preferences {
         return getPrefs(context).getLong(PREF_LAST_AUTOSTART_TIME, 0);
     }
 
+    private static final String PREF_AUTOSTART_WIFI_BOOT = "autostartWifiBootEnabled";
+
+    /** User-facing toggle for the Wi-Fi/boot autostart job. Default true preserves prior behaviour. */
+    public static void setAutostartWifiBoot(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(PREF_AUTOSTART_WIFI_BOOT, enabled).apply();
+    }
+
+    public static boolean autostartWifiBoot(Context context) {
+        return getPrefs(context).getBoolean(PREF_AUTOSTART_WIFI_BOOT, true);
+    }
+
     private static final String PREF_DEBUG_LOGGING = "debugLoggingEnabled";
 
     public static void setDebugLoggingEnabled(Context context, boolean enabled) {
