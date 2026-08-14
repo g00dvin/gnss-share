@@ -20,6 +20,18 @@
         <item name="android:background">@drawable/bg_card</item>
     </style>
 
+    <style name="LsKvRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="LsMetricRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
     <style name="LsDivider">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>

@@ -83,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private ViewFlipper viewFlipper;
     private ImageView btnLeft, btnRight;
     private TextView titleText, subtitleText;
+    private androidx.activity.OnBackPressedCallback backCallback;
 
     // Connect
     private PowerOrbView powerOrb;
@@ -238,15 +239,6 @@ public class MainActivity extends AppCompatActivity {
         refreshState();
     }
 
-    @Override
-    public void onBackPressed() {
-        if (viewFlipper.getDisplayedChild() != VIEW_CONNECT) {
-            showView(VIEW_CONNECT);
-        } else {
-            super.onBackPressed();
-        }
-    }
-
     // --- binding ---
 
     private void bindTopBar() {
@@ -263,10 +255,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         btnRight.setOnClickListener(v -> showView(VIEW_MONITOR));
+
+        // System back returns to Connect from a sub-view (works with predictive back on targetSdk 36,
+        // where the legacy onBackPressed() override is no longer invoked).
+        backCallback = new androidx.activity.OnBackPressedCallback(false) {
+            @Override public void handleOnBackPressed() {
+                showView(VIEW_CONNECT);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, backCallback);
     }
 
     private void showView(int index) {
         viewFlipper.setDisplayedChild(index);
+        if (backCallback != null) backCallback.setEnabled(index != VIEW_CONNECT);
         boolean connect = index == VIEW_CONNECT;
         btnLeft.setImageResource(connect ? R.drawable.ic_gear_six : R.drawable.ic_arrow_left);
         btnLeft.setContentDescription(getString(connect ? R.string.cd_settings : R.string.cd_back));

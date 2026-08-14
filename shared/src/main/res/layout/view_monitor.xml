@@ -47,19 +47,36 @@
                 android:textColor="@color/ls_text_muted"
                 android:textSize="11.5sp" />
 
-            <GridLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:columnCount="2">
+                android:orientation="vertical">
 
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvProvider" />
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvSatellites" />
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvSpeed" />
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvBearing" />
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvAge" />
-                <include layout="@layout/ls_kv_cell" android:id="@+id/kvFixes" />
-            </GridLayout>
+                <LinearLayout style="@style/LsKvRow">
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvProvider"
+                        android:layout_width="0dp" android:layout_weight="1" />
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvSatellites"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_marginStart="16dp" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/LsKvRow">
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvSpeed"
+                        android:layout_width="0dp" android:layout_weight="1" />
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvBearing"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_marginStart="16dp" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/LsKvRow">
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvAge"
+                        android:layout_width="0dp" android:layout_weight="1" />
+                    <include layout="@layout/ls_kv_cell" android:id="@+id/kvFixes"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_marginStart="16dp" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
         <!-- 2. Link health -->
@@ -74,19 +91,26 @@
             android:textColor="@color/ls_text_dim"
             android:textSize="10sp" />
 
-        <GridLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:columnCount="2"
-            android:useDefaultMargins="false">
+        <LinearLayout style="@style/LsMetricRow">
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhPackets"
+                android:layout_width="0dp" android:layout_weight="1" />
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhBytes"
+                android:layout_width="0dp" android:layout_weight="1" />
+        </LinearLayout>
 
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhPackets" />
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhBytes" />
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhMaxGap" />
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeMean" />
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeP95" />
-            <include layout="@layout/ls_metric_card" android:id="@+id/lhCpu" />
-        </GridLayout>
+        <LinearLayout style="@style/LsMetricRow">
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhMaxGap"
+                android:layout_width="0dp" android:layout_weight="1" />
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeMean"
+                android:layout_width="0dp" android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/LsMetricRow">
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhAgeP95"
+                android:layout_width="0dp" android:layout_weight="1" />
+            <include layout="@layout/ls_metric_card" android:id="@+id/lhCpu"
+                android:layout_width="0dp" android:layout_weight="1" />
+        </LinearLayout>
 
         <!-- 3. Sparklines -->
         <include layout="@layout/ls_spark_card" android:id="@+id/sparkAge"
