@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright © 2025-2026 Dezz (https://github.com/DezzK). GPLv3. See <https://www.gnu.org/licenses/>. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Permissions -->
+        <TextView style="@style/LsGroupLabel" android:text="@string/group_permissions" />
+        <LinearLayout style="@style/LsGroupCard">
+            <include layout="@layout/row_setting_action" android:id="@+id/rowPermissions" />
+        </LinearLayout>
+
+        <!-- Automation -->
+        <TextView style="@style/LsGroupLabel" android:text="@string/group_automation" />
+        <LinearLayout style="@style/LsGroupCard">
+            <include layout="@layout/row_setting_toggle" android:id="@+id/rowAutostart" />
+            <View style="@style/LsDivider" />
+            <include layout="@layout/row_setting_toggle" android:id="@+id/rowStaticJitter" />
+        </LinearLayout>
+
+        <!-- Diagnostics -->
+        <TextView style="@style/LsGroupLabel" android:text="@string/group_diagnostics" />
+        <LinearLayout style="@style/LsGroupCard">
+            <include layout="@layout/row_setting_toggle" android:id="@+id/rowDebug" />
+            <View style="@style/LsDivider" />
+            <include layout="@layout/row_setting_toggle" android:id="@+id/rowMetrics" />
+            <View style="@style/LsDivider" />
+            <include layout="@layout/row_setting_action" android:id="@+id/rowExportMetrics" />
+        </LinearLayout>
+
+        <!-- About -->
+        <TextView style="@style/LsGroupLabel" android:text="@string/group_about" />
+        <LinearLayout style="@style/LsGroupCard">
+            <include layout="@layout/row_setting_action" android:id="@+id/rowVersion" />
+            <View style="@style/LsDivider" />
+            <include layout="@layout/row_setting_action" android:id="@+id/rowLicense" />
+        </LinearLayout>
+
+        <!-- Footer -->
+        <TextView
+            android:id="@+id/copyrightTextSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:autoLink="web"
+            android:gravity="center"
+            android:linksClickable="true"
+            android:text="@string/copyright_notice"
+            android:textColor="@color/ls_text_dim"
+            android:textColorLink="@color/ls_accent_400"
+            android:textSize="10.5sp" />
+    </LinearLayout>
+</ScrollView>

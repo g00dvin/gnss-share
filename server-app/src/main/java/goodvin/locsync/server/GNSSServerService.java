@@ -366,21 +366,32 @@ public class GNSSServerService extends Service {
 
     private void sampleMetrics() {
         try {
-            if (Preferences.metricsEnabled(this)) {
+            // Compute + broadcast the snapshot every tick so the Monitor screen always shows live
+            // link-health data; the metrics toggle only gates persistence (CSV + logcat).
+            {
                 MetricsSnapshot s = metrics.snapshot(statsReader.read());
                 if (!metricsPrimed) {
                     metricsPrimed = true; // first call primed the baseline; skip emitting garbage window
                 } else {
                     String ts = metricsTs.format(new java.util.Date());
                     long uptimeS = SystemClock.elapsedRealtime() / 1000;
-                    csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
-                    Log.i(METRICS_TAG, s.toLogLine());
+                    if (Preferences.metricsEnabled(this)) {
+                        csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
+                        Log.i(METRICS_TAG, s.toLogLine());
+                    }
                     sendBroadcast(new Intent("goodvin.locsync.METRICS")
                             .setPackage(getPackageName())
-                            .putExtra("text", s.toDisplayString()));
+                            .putExtra("text", s.toDisplayString())
+                            .putExtra("pktSentPerSec", s.pktSentPerSec)
+                            .putExtra("pktRecvPerSec", s.pktRecvPerSec)
+                            .putExtra("bytesSentPerSec", s.bytesSentPerSec)
+                            .putExtra("bytesRecvPerSec", s.bytesRecvPerSec)
+                            .putExtra("maxGapMs", s.maxGapMs)
+                            .putExtra("ageMeanMs", s.ageMeanMs)
+                            .putExtra("ageP95Ms", s.ageP95Ms)
+                            .putExtra("cpuPct", s.cpuPct)
+                            .putExtra("fixesPerSec", s.fixesPerSec));
                 }
-            } else {
-                metricsPrimed = false; // re-prime next time it is enabled
             }
         } catch (Exception e) {
             Log.w(TAG, "metrics sampling failed", e);
@@ -543,6 +554,53 @@ public class GNSSServerService extends Service {
         return running;
     }
 
+    /** True when a HELLO-registered client is currently present (drives {@code LinkState.CONNECTED}). */
+    public static boolean isClientConnected() {
+        return instance != null && instance.clientAddr != null;
+    }
+
+    /** Satellites used in the fix, or 0 when the service is not running. */
+    public static int currentSatelliteCount() {
+        return instance != null ? instance.getSatelliteCount() : 0;
+    }
+
+    /** Total satellites currently tracked (all constellations), or 0 when not running. */
+    public static int currentVisibleSatelliteCount() {
+        return (instance != null && instance.gnssStatus != null)
+                ? instance.gnssStatus.getSatelliteCount() : 0;
+    }
+
+    /** C/N0 (dB-Hz) of the used-in-fix satellites, strongest first, up to 14. Null when unavailable. */
+    public static float[] currentUsedCn0() {
+        if (instance == null || instance.gnssStatus == null) {
+            return null;
+        }
+        GnssStatus s = instance.gnssStatus;
+        int n = s.getSatelliteCount();
+        java.util.ArrayList<Float> vals = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (s.usedInFix(i)) {
+                vals.add(s.getCn0DbHz(i));
+            }
+        }
+        vals.sort(java.util.Collections.reverseOrder());
+        int m = Math.min(vals.size(), 14);
+        float[] out = new float[m];
+        for (int i = 0; i < m; i++) {
+            out[i] = vals.get(i);
+        }
+        return out;
+    }
+
+    /** The most recent GNSS fix the server is transmitting, or null when none/stopped. */
+    public static LocationProto.LocationUpdate currentLocationUpdate() {
+        if (instance == null) {
+            return null;
+        }
+        LocationProto.ServerResponse resp = instance.lastServerResponse.build();
+        return resp.hasLocationUpdate() ? resp.getLocationUpdate() : null;
+    }
+
     // Public methods for checking service state
     public static boolean isServiceEnabled(Context context) {
         return getPrefs(context).getBoolean(PREF_IS_SERVICE_ENABLED, false);
@@ -633,7 +691,16 @@ public class GNSSServerService extends Service {
         if (gnssStatus == null) {
             return 0;
         }
-        return gnssStatus.getSatelliteCount();
+        // Report satellites actually used in the fix rather than every satellite tracked, so the
+        // count is meaningful (e.g. ~8-14) instead of the raw all-constellation total (~80+).
+        int used = 0;
+        int total = gnssStatus.getSatelliteCount();
+        for (int i = 0; i < total; i++) {
+            if (gnssStatus.usedInFix(i)) {
+                used++;
+            }
+        }
+        return used;
     }
 
     private boolean isGooglePlayServicesAvailable(Context context) {

@@ -126,8 +126,22 @@ public class Preferences {
         getPrefs(context).edit().putBoolean(PREF_FUSED_LOCATION_ENABLED, enabled).apply();
     }
 
+    // Bumped: an earlier migration flag was consumed while the pref could still be flipped off by the
+    // broken toggle rendering. A new key forces the intended default (on) once more.
+    private static final String PREF_FUSED_DEFAULT_ON_MIGRATED = "fusedDefaultOnMigrated2";
+
     public static boolean fusedLocationEnabled(Context context) {
-        return getPrefs(context).getBoolean(PREF_FUSED_LOCATION_ENABLED, true);
+        SharedPreferences prefs = getPrefs(context);
+        // One-time reset to on: earlier builds drew the toggle with the wrong (always-off) state,
+        // so users could flip the pref off by accident. Force the intended default (on) once.
+        if (!prefs.getBoolean(PREF_FUSED_DEFAULT_ON_MIGRATED, false)) {
+            prefs.edit()
+                    .putBoolean(PREF_FUSED_LOCATION_ENABLED, true)
+                    .putBoolean(PREF_FUSED_DEFAULT_ON_MIGRATED, true)
+                    .apply();
+            return true;
+        }
+        return prefs.getBoolean(PREF_FUSED_LOCATION_ENABLED, true);
     }
 
     private static final String PREF_DEBUG_LOGGING = "debugLoggingEnabled";
@@ -138,6 +152,17 @@ public class Preferences {
 
     public static boolean debugLoggingEnabled(Context context) {
         return getPrefs(context).getBoolean(PREF_DEBUG_LOGGING, false);
+    }
+
+    private static final String PREF_LIVE_MONITORING = "liveMonitoring";
+
+    /** Real-time updates in the Monitor screen. Off by default. */
+    public static void setLiveMonitoring(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(PREF_LIVE_MONITORING, enabled).apply();
+    }
+
+    public static boolean liveMonitoring(Context context) {
+        return getPrefs(context).getBoolean(PREF_LIVE_MONITORING, false);
     }
 
     private static final String PREF_METRICS_ENABLED = "metricsEnabled";

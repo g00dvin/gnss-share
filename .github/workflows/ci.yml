@@ -12,6 +12,9 @@ jobs:
   build:
     name: Build & Test (debug)
     runs-on: ubuntu-latest
+    # Write access so the debug prerelease step can create/update a Release.
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -41,12 +44,57 @@ jobs:
         echo "BUILD_LABEL=$BUILD_LABEL"
         ./gradlew assembleDebug
 
-    - name: Upload debug APKs
+    - name: Collect debug APKs
+      run: |
+        mkdir -p artifacts
+        cp client-app/build/outputs/apk/debug/*.apk artifacts/
+        cp server-app/build/outputs/apk/debug/*.apk artifacts/
+
+    # One artifact per app, each containing just the APK at the zip root (GitHub always wraps
+    # artifacts in a zip; a raw .apk download is only available from a tagged Release).
+    - name: Upload client debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: debug-apks
-        path: |
-          server-app/build/outputs/apk/debug/*.apk
-          client-app/build/outputs/apk/debug/*.apk
+        name: locsync-client-debug
+        path: artifacts/locsync-client-*-debug.apk
         if-no-files-found: error
         retention-days: 14
+
+    - name: Upload server debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: locsync-server-debug
+        path: artifacts/locsync-server-*-debug.apk
+        if-no-files-found: error
+        retention-days: 14
+
+    # Attach the raw debug APKs to a per-branch rolling prerelease so they can be installed
+    # directly (Actions artifacts are always zipped; Release assets are not). Push events only,
+    # so pull requests never publish a Release.
+    - name: Compute release tag
+      if: github.event_name == 'push'
+      run: echo "TAG_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> "$GITHUB_ENV"
+
+    # action-gh-release neither moves an existing tag nor refreshes an existing release body,
+    # so a rolling prerelease would keep pointing at the commit that first created it. Delete it
+    # (and its tag) first so the next step recreates it fresh at the current commit.
+    - name: Delete previous debug prerelease
+      if: github.event_name == 'push'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release delete "debug-${TAG_SLUG}" --cleanup-tag --yes || true
+
+    - name: Publish debug prerelease
+      if: github.event_name == 'push'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: debug-${{ env.TAG_SLUG }}
+        name: "Debug build — ${{ github.ref_name }}"
+        prerelease: true
+        draft: false
+        # Create the tag at the current commit on each push.
+        target_commitish: ${{ github.sha }}
+        body: |
+          Automated **debug** build from `${{ github.ref_name }}` @ `${{ github.sha }}`.
+          Debug-signed (not the release key). Uninstall any release build first if install fails.
+        files: artifacts/*.apk

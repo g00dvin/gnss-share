@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<resources>
+    <string name="nav_monitor">Мониторинг</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="status_server_waiting">Запущен · ожидание клиента</string>
+    <string name="status_client_connecting">Подключение к серверу…</string>
+    <string name="status_client_connected">Подключено</string>
+    <string name="status_hint_start">Нажмите, чтобы запустить</string>
+    <string name="status_hint_stop">Нажмите ещё раз, чтобы остановить</string>
+    <string name="uptime_label">Время</string>
+    <string name="signal_title">Сигнал</string>
+    <string name="link_health_title">Состояние канала</string>
+    <string name="log_title">Журнал</string>
+    <string name="log_clear">Очистить</string>
+    <string name="request_permissions_short">Запросить</string>
+    <string name="autostart_wifi_boot">Автозапуск по Wi-Fi и при загрузке</string>
+    <string name="autostart_wifi_boot_sub">Задача JobScheduler переживает перезагрузку.</string>
+    <string name="about_protocol">Протокол v3 · UDP 8887</string>
+    <string name="license_gpl3">GNU GPL v3.0</string>
+    <string name="license_view">Открыть лицензию</string>
+    <string name="warn_background_location">⚠ Не включён постоянный доступ к местоположению. Нажмите, чтобы открыть разрешения.</string>
+
+    <string name="nav_connect">Подключение</string>
+    <string name="section_location">Информация о местоположении</string>
+    <string name="live_monitoring">Мониторинг в реальном времени</string>
+    <string name="lh_packets">Пакеты/с</string>
+    <string name="lh_bytes">Байты/с</string>
+    <string name="lh_max_gap">Макс. разрыв, мс</string>
+    <string name="lh_age_mean">Ср. возраст, мс</string>
+    <string name="lh_age_p95">Возраст p95, мс</string>
+    <string name="lh_cpu">ЦП</string>
+    <string name="stat_satellites">Спутники</string>
+    <string name="stat_sent">Отпр.</string>
+    <string name="stat_recv">Приём</string>
+    <string name="label_provider">Провайдер</string>
+    <string name="label_speed">Скорость</string>
+    <string name="label_bearing">Курс</string>
+    <string name="label_age">Возраст</string>
+    <string name="label_fixes">Фиксы</string>
+    <string name="spark_fix_age">Возраст фикса</string>
+    <string name="spark_packets">Пакеты</string>
+    <string name="spark_satellites">Спутники</string>
+    <string name="export_logs_short">Логи</string>
+    <string name="export_csv_short">Экспорт CSV</string>
+    <string name="group_permissions">Разрешения</string>
+    <string name="group_server_address">Адрес сервера</string>
+    <string name="group_location_provider">Провайдер местоположения</string>
+    <string name="group_automation">Автоматизация</string>
+    <string name="group_diagnostics">Диагностика</string>
+    <string name="group_about">О программе</string>
+    <string name="trigger_devices">Устройства-триггеры</string>
+    <string name="subtitle_server">Wi-Fi точка доступа · UDP 8887</string>
+    <string name="subtitle_client">Автопоиск (broadcast) · UDP 8887</string>
+    <string name="sub_server_waiting">Слушает %1$s:%2$d</string>
+    <string name="sub_client_waiting">HELLO широковещательно 1 Гц → 255.255.255.255</string>
+    <string name="sub_server_connected">1 клиент</string>
+    <string name="sub_client_connected">протокол v3</string>
+    <string name="cd_settings">Настройки</string>
+    <string name="cd_monitor">Мониторинг</string>
+    <string name="cd_back">Назад</string>
+    <string name="cd_power">Запустить или остановить</string>
+    <string name="cd_dismiss">Скрыть</string>
+</resources>

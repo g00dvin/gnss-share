@@ -536,21 +536,32 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
     private void sampleMetrics() {
         try {
-            if (Preferences.metricsEnabled(this)) {
+            // Compute + broadcast the snapshot every tick so the Monitor screen always shows live
+            // link-health data; the metrics toggle only gates persistence (CSV + logcat).
+            {
                 MetricsSnapshot s = metrics.snapshot(statsReader.read());
                 if (!metricsPrimed) {
                     metricsPrimed = true;
                 } else {
                     String ts = metricsTs.format(new java.util.Date());
                     long uptimeS = SystemClock.elapsedRealtime() / 1000;
-                    csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
-                    Log.i(METRICS_TAG, s.toLogLine());
+                    if (Preferences.metricsEnabled(this)) {
+                        csvWriter.append(MetricsSnapshot.csvHeader(), s.toCsvRow(ts, uptimeS));
+                        Log.i(METRICS_TAG, s.toLogLine());
+                    }
                     sendBroadcast(new Intent("goodvin.locsync.METRICS")
                             .setPackage(getPackageName())
-                            .putExtra("text", s.toDisplayString()));
+                            .putExtra("text", s.toDisplayString())
+                            .putExtra("pktSentPerSec", s.pktSentPerSec)
+                            .putExtra("pktRecvPerSec", s.pktRecvPerSec)
+                            .putExtra("bytesSentPerSec", s.bytesSentPerSec)
+                            .putExtra("bytesRecvPerSec", s.bytesRecvPerSec)
+                            .putExtra("maxGapMs", s.maxGapMs)
+                            .putExtra("ageMeanMs", s.ageMeanMs)
+                            .putExtra("ageP95Ms", s.ageP95Ms)
+                            .putExtra("cpuPct", s.cpuPct)
+                            .putExtra("fixesPerSec", s.fixesPerSec));
                 }
-            } else {
-                metricsPrimed = false;
             }
         } catch (Exception e) {
             Log.w(TAG, "metrics sampling failed", e);
