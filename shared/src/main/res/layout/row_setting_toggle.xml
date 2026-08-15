@@ -38,7 +38,7 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <Switch
+    <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/row_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -47,7 +47,6 @@
         android:showText="false"
         android:switchMinWidth="44dp"
         android:thumb="@drawable/switch_thumb"
-        android:track="@drawable/switch_track"
-        tools:ignore="UseSwitchCompatOrMaterialXml"
-        xmlns:tools="http://schemas.android.com/tools" />
+        app:track="@drawable/switch_track"
+        xmlns:app="http://schemas.android.com/apk/res-auto" />
 </LinearLayout>

@@ -40,7 +40,7 @@ import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.Switch;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
     private SparklineView sparkAgeView, sparkPktView, sparkSatView;
     private TextView sparkAgeVal, sparkPktVal, sparkSatVal;
 
-    private Switch fusedSwitch, bluetoothSwitch;
+    private CompoundButton fusedSwitch, bluetoothSwitch;
     private boolean liveMonitoring = false;   // real-time Monitor updates, off by default
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -325,7 +325,7 @@ public class MainActivity extends AppCompatActivity {
         setText(R.id.lhAgeP95, R.id.metricLabel, getString(R.string.lh_age_p95));
         setText(R.id.lhCpu, R.id.metricLabel, getString(R.string.lh_cpu));
 
-        Switch liveSwitch = findViewById(R.id.monitorLiveSwitch);
+        CompoundButton liveSwitch = findViewById(R.id.monitorLiveSwitch);
         liveSwitch.setChecked(liveMonitoring);
         liveSwitch.setOnCheckedChangeListener((b, checked) -> {
             liveMonitoring = checked;
@@ -873,7 +873,7 @@ public class MainActivity extends AppCompatActivity {
             subView.setText(sub);
             subView.setVisibility(View.VISIBLE);
         }
-        Switch sw = row.findViewById(R.id.row_switch);
+        CompoundButton sw = row.findViewById(R.id.row_switch);
         sw.setChecked(checked);
         row.setOnClickListener(v -> {
             boolean next = !sw.isChecked();
