@@ -38,15 +38,13 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <androidx.appcompat.widget.SwitchCompat
+    <Switch
         android:id="@+id/row_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:clickable="false"
         android:focusable="false"
         android:showText="false"
-        android:switchMinWidth="44dp"
-        android:thumb="@drawable/switch_thumb"
-        app:track="@drawable/switch_track"
-        xmlns:app="http://schemas.android.com/apk/res-auto" />
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
 </LinearLayout>

@@ -32,15 +32,13 @@
                 android:textColor="@color/ls_text"
                 android:textSize="13.5sp" />
 
-            <androidx.appcompat.widget.SwitchCompat
+            <Switch
                 android:id="@+id/monitorLiveSwitch"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:showText="false"
-                android:switchMinWidth="44dp"
-                android:thumb="@drawable/switch_thumb"
-                app:track="@drawable/switch_track"
-                xmlns:app="http://schemas.android.com/apk/res-auto" />
+                xmlns:tools="http://schemas.android.com/tools"
+                tools:ignore="UseSwitchCompatOrMaterialXml" />
         </LinearLayout>
 
         <!-- 1. Location information -->
