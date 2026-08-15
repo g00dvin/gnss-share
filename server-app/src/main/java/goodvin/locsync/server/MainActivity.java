@@ -364,20 +364,24 @@ public class MainActivity extends AppCompatActivity {
         setText(rowFused, R.id.row_label, getString(R.string.fused_location_enabled));
         fusedSwitch = rowFused.findViewById(R.id.row_switch);
         boolean supported = GNSSServerService.isFusedLocationSupported(this);
-        if (supported) {
-            fusedSwitch.setChecked(Preferences.fusedLocationEnabled(this));
-            rowFused.setOnClickListener(v -> {
-                boolean next = !fusedSwitch.isChecked();
-                fusedSwitch.setChecked(next);
-                Preferences.setFusedLocationEnabled(this, next);
-            });
-        } else {
-            fusedSwitch.setChecked(false);
-            fusedSwitch.setEnabled(false);
+        // Reflect the stored preference (default on) regardless of support, so it isn't shown off by
+        // default. `supported` only controls whether the row is editable.
+        fusedSwitch.setChecked(Preferences.fusedLocationEnabled(this));
+        fusedSwitch.setEnabled(supported);
+        rowFused.setEnabled(supported);
+        if (!supported) {
             TextView sub = rowFused.findViewById(R.id.row_sub);
             sub.setText(R.string.fused_location_not_supported);
             sub.setVisibility(View.VISIBLE);
         }
+        rowFused.setOnClickListener(v -> {
+            if (!supported) {
+                return;
+            }
+            boolean next = !fusedSwitch.isChecked();
+            fusedSwitch.setChecked(next);
+            Preferences.setFusedLocationEnabled(this, next);
+        });
 
         // Automation
         View rowBt = findViewById(R.id.rowBluetooth);
