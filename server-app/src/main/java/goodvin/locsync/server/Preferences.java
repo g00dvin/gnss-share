@@ -126,8 +126,20 @@ public class Preferences {
         getPrefs(context).edit().putBoolean(PREF_FUSED_LOCATION_ENABLED, enabled).apply();
     }
 
+    private static final String PREF_FUSED_DEFAULT_ON_MIGRATED = "fusedDefaultOnMigrated";
+
     public static boolean fusedLocationEnabled(Context context) {
-        return getPrefs(context).getBoolean(PREF_FUSED_LOCATION_ENABLED, true);
+        SharedPreferences prefs = getPrefs(context);
+        // One-time reset to on: earlier builds drew the toggle with the wrong (always-off) state,
+        // so users could flip the pref off by accident. Force the intended default (on) once.
+        if (!prefs.getBoolean(PREF_FUSED_DEFAULT_ON_MIGRATED, false)) {
+            prefs.edit()
+                    .putBoolean(PREF_FUSED_LOCATION_ENABLED, true)
+                    .putBoolean(PREF_FUSED_DEFAULT_ON_MIGRATED, true)
+                    .apply();
+            return true;
+        }
+        return prefs.getBoolean(PREF_FUSED_LOCATION_ENABLED, true);
     }
 
     private static final String PREF_DEBUG_LOGGING = "debugLoggingEnabled";
