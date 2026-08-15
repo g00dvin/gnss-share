@@ -126,7 +126,9 @@ public class Preferences {
         getPrefs(context).edit().putBoolean(PREF_FUSED_LOCATION_ENABLED, enabled).apply();
     }
 
-    private static final String PREF_FUSED_DEFAULT_ON_MIGRATED = "fusedDefaultOnMigrated";
+    // Bumped: an earlier migration flag was consumed while the pref could still be flipped off by the
+    // broken toggle rendering. A new key forces the intended default (on) once more.
+    private static final String PREF_FUSED_DEFAULT_ON_MIGRATED = "fusedDefaultOnMigrated2";
 
     public static boolean fusedLocationEnabled(Context context) {
         SharedPreferences prefs = getPrefs(context);
