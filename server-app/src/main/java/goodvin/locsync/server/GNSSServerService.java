@@ -559,9 +559,37 @@ public class GNSSServerService extends Service {
         return instance != null && instance.clientAddr != null;
     }
 
-    /** Current satellite count, or 0 when the service is not running. */
+    /** Satellites used in the fix, or 0 when the service is not running. */
     public static int currentSatelliteCount() {
         return instance != null ? instance.getSatelliteCount() : 0;
+    }
+
+    /** Total satellites currently tracked (all constellations), or 0 when not running. */
+    public static int currentVisibleSatelliteCount() {
+        return (instance != null && instance.gnssStatus != null)
+                ? instance.gnssStatus.getSatelliteCount() : 0;
+    }
+
+    /** C/N0 (dB-Hz) of the used-in-fix satellites, strongest first, up to 14. Null when unavailable. */
+    public static float[] currentUsedCn0() {
+        if (instance == null || instance.gnssStatus == null) {
+            return null;
+        }
+        GnssStatus s = instance.gnssStatus;
+        int n = s.getSatelliteCount();
+        java.util.ArrayList<Float> vals = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (s.usedInFix(i)) {
+                vals.add(s.getCn0DbHz(i));
+            }
+        }
+        vals.sort(java.util.Collections.reverseOrder());
+        int m = Math.min(vals.size(), 14);
+        float[] out = new float[m];
+        for (int i = 0; i < m; i++) {
+            out[i] = vals.get(i);
+        }
+        return out;
     }
 
     /** The most recent GNSS fix the server is transmitting, or null when none/stopped. */

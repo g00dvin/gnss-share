@@ -18,16 +18,6 @@
             <include layout="@layout/row_setting_action" android:id="@+id/rowPermissions" />
         </LinearLayout>
 
-        <!-- Server address -->
-        <TextView style="@style/LsGroupLabel" android:text="@string/group_server_address" />
-        <LinearLayout style="@style/LsGroupCard">
-            <include layout="@layout/row_setting_radio" android:id="@+id/rowRadioAuto" />
-            <View style="@style/LsDivider" />
-            <include layout="@layout/row_setting_radio" android:id="@+id/rowRadioManual" />
-            <View style="@style/LsDivider" />
-            <include layout="@layout/row_setting_input" android:id="@+id/rowServerIp" />
-        </LinearLayout>
-
         <!-- Automation -->
         <TextView style="@style/LsGroupLabel" android:text="@string/group_automation" />
         <LinearLayout style="@style/LsGroupCard">

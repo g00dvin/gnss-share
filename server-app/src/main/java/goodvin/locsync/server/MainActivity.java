@@ -110,6 +110,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView sparkAgeVal, sparkPktVal, sparkSatVal;
 
     private Switch fusedSwitch, bluetoothSwitch;
+    private boolean liveMonitoring = false;   // real-time Monitor updates, off by default
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final SimpleDateFormat logTime = new SimpleDateFormat("HH:mm:ss", Locale.US);
@@ -122,8 +123,10 @@ public class MainActivity extends AppCompatActivity {
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             refreshState();
-            updateMonitorLocation();
-            if (viewFlipper.getDisplayedChild() == VIEW_MONITOR) renderLog();
+            if (liveMonitoring) {
+                updateMonitorLocation();
+                if (viewFlipper.getDisplayedChild() == VIEW_MONITOR) renderLog();
+            }
             blinkLogDot();
             mainHandler.postDelayed(this, 1000);
         }
@@ -176,11 +179,13 @@ public class MainActivity extends AppCompatActivity {
                 mAgeP95 = intent.getDoubleExtra("ageP95Ms", Double.NaN);
                 mCpu = intent.getDoubleExtra("cpuPct", Double.NaN);
                 mFixes = intent.getDoubleExtra("fixesPerSec", Double.NaN);
-                if (!Double.isNaN(mAgeMean)) sparkAgeView.push((float) mAgeMean);
-                if (!Double.isNaN(mPktSent)) sparkPktView.push((float) mPktSent);
-                sparkSatView.push(GNSSServerService.currentSatelliteCount());
-                updateMonitorMetrics();
                 updateConnectReadouts();
+                if (liveMonitoring) {
+                    if (!Double.isNaN(mAgeMean)) sparkAgeView.push((float) mAgeMean);
+                    if (!Double.isNaN(mPktSent)) sparkPktView.push((float) mPktSent);
+                    sparkSatView.push(GNSSServerService.currentSatelliteCount());
+                    updateMonitorMetrics();
+                }
             }
         }
     };
@@ -193,6 +198,7 @@ public class MainActivity extends AppCompatActivity {
         AppLog.setDebug(Preferences.debugLoggingEnabled(this));
 
         appVersion = VersionGetter.getAppVersionName(this);
+        liveMonitoring = Preferences.liveMonitoring(this);
 
         bindTopBar();
         bindConnect();
@@ -296,11 +302,6 @@ public class MainActivity extends AppCompatActivity {
         powerOrb.setOnClickListener(v -> togglePower());
         connectBanner.setOnClickListener(v -> requestPermissions());
         findViewById(R.id.bannerDismiss).setOnClickListener(v -> connectBanner.setVisibility(View.GONE));
-
-        TextView versionText = findViewById(R.id.versionText);
-        String buildLabel = getString(R.string.build_label);
-        String shown = buildLabel.isEmpty() ? appVersion : buildLabel;
-        versionText.setText(String.format(getString(R.string.version_label), shown));
     }
 
     private void bindMonitor() {
@@ -317,12 +318,19 @@ public class MainActivity extends AppCompatActivity {
         setText(R.id.kvAge, R.id.kvKey, getString(R.string.label_age));
         setText(R.id.kvFixes, R.id.kvKey, getString(R.string.label_fixes));
 
-        setText(R.id.lhPackets, R.id.metricLabel, "Packets/s");
-        setText(R.id.lhBytes, R.id.metricLabel, "Bytes/s");
-        setText(R.id.lhMaxGap, R.id.metricLabel, "Max gap ms");
-        setText(R.id.lhAgeMean, R.id.metricLabel, "Age mean ms");
-        setText(R.id.lhAgeP95, R.id.metricLabel, "Age p95 ms");
-        setText(R.id.lhCpu, R.id.metricLabel, "CPU %");
+        setText(R.id.lhPackets, R.id.metricLabel, getString(R.string.lh_packets));
+        setText(R.id.lhBytes, R.id.metricLabel, getString(R.string.lh_bytes));
+        setText(R.id.lhMaxGap, R.id.metricLabel, getString(R.string.lh_max_gap));
+        setText(R.id.lhAgeMean, R.id.metricLabel, getString(R.string.lh_age_mean));
+        setText(R.id.lhAgeP95, R.id.metricLabel, getString(R.string.lh_age_p95));
+        setText(R.id.lhCpu, R.id.metricLabel, getString(R.string.lh_cpu));
+
+        Switch liveSwitch = findViewById(R.id.monitorLiveSwitch);
+        liveSwitch.setChecked(liveMonitoring);
+        liveSwitch.setOnCheckedChangeListener((b, checked) -> {
+            liveMonitoring = checked;
+            Preferences.setLiveMonitoring(this, checked);
+        });
 
         View sparkAge = findViewById(R.id.sparkAge);
         View sparkPkt = findViewById(R.id.sparkPkt);
@@ -437,7 +445,7 @@ public class MainActivity extends AppCompatActivity {
             case CONNECTED -> {
                 statusLine.setText(R.string.notification_clients_single);
                 statusLine.setTextColor(getColor(R.color.ls_accent_400));
-                statusSub.setText(String.format(getString(R.string.sub_server_connected), uptime()));
+                statusSub.setText(R.string.sub_server_connected);
             }
             case WAITING -> {
                 statusLine.setText(R.string.status_server_waiting);
@@ -475,17 +483,19 @@ public class MainActivity extends AppCompatActivity {
         boolean connected = currentState() == LinkState.CONNECTED;
         int textColor = getColor(R.color.ls_text);
         int dimColor = getColor(R.color.ls_text_dim);
-        int sats = GNSSServerService.currentSatelliteCount();
+        int used = GNSSServerService.currentSatelliteCount();
+        int visible = GNSSServerService.currentVisibleSatelliteCount();
+        float[] cn0 = GNSSServerService.currentUsedCn0();
 
         if (connected) {
-            setStat(statCard1, String.valueOf(sats), textColor);
+            setStat(statCard1, String.valueOf(used), textColor);
             setStat(statCard2, fmt1(mPktSent), textColor);
             setStat(statCard3, uptime(), textColor);
             setText(statCard3, R.id.statUnit, Double.isNaN(mBytesSent) ? "" :
                     String.format(Locale.US, "%.1f %s", mBytesSent / 1024.0, getString(R.string.unit_kbs)));
-            signalDetail.setText(String.format(getString(R.string.section_signal_fix),
-                    sats, sats, getString(R.string.fix_3d)));
-            satBars.setData(sats, null);
+            // used-in-fix / total tracked, so the bar scale (up to 14 strongest) is clear.
+            signalDetail.setText(String.format(getString(R.string.signal_used_total), used, Math.max(used, visible)));
+            satBars.setData(used, cn0);
         } else {
             String none = getString(R.string.value_none);
             setStat(statCard1, none, dimColor);
@@ -742,7 +752,7 @@ public class MainActivity extends AppCompatActivity {
         BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
         BluetoothAdapter bluetoothAdapter = bluetoothManager != null ? bluetoothManager.getAdapter() : null;
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            Toast.makeText(this, "Bluetooth is not available or not enabled", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.bluetooth_not_available, Toast.LENGTH_SHORT).show();
             return;
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S

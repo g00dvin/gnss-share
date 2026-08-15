@@ -140,6 +140,17 @@ public class Preferences {
         return getPrefs(context).getBoolean(PREF_DEBUG_LOGGING, false);
     }
 
+    private static final String PREF_LIVE_MONITORING = "liveMonitoring";
+
+    /** Real-time updates in the Monitor screen. Off by default. */
+    public static void setLiveMonitoring(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(PREF_LIVE_MONITORING, enabled).apply();
+    }
+
+    public static boolean liveMonitoring(Context context) {
+        return getPrefs(context).getBoolean(PREF_LIVE_MONITORING, false);
+    }
+
     private static final String PREF_METRICS_ENABLED = "metricsEnabled";
 
     public static void setMetricsEnabled(Context context, boolean enabled) {

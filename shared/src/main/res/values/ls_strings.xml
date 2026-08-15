@@ -41,10 +41,15 @@
     <!-- Additional redesign copy (sub-lines, section labels, monitor readouts) -->
     <string name="nav_connect">Connect</string>
     <string name="section_location">Location information</string>
-    <string name="section_signal_fix" translatable="false">%1$d/%2$d · %3$s</string>
-    <string name="fix_3d" translatable="false">3D fix</string>
-    <string name="fix_2d" translatable="false">2D fix</string>
-    <string name="fix_none">no fix</string>
+    <string name="signal_used_total" translatable="false">%1$d/%2$d</string>
+    <string name="signal_sats" translatable="false">%d</string>
+    <string name="live_monitoring">Real-time monitoring</string>
+    <string name="lh_packets">Packets/s</string>
+    <string name="lh_bytes">Bytes/s</string>
+    <string name="lh_max_gap">Max gap ms</string>
+    <string name="lh_age_mean">Age mean ms</string>
+    <string name="lh_age_p95">Age p95 ms</string>
+    <string name="lh_cpu">CPU</string>
     <string name="stat_satellites">Satellites</string>
     <string name="stat_sent">Sent</string>
     <string name="stat_recv">Recv</string>
@@ -72,10 +77,10 @@
     <string name="trigger_devices">Trigger devices</string>
     <string name="subtitle_server">Wi-Fi Hotspot · UDP 8887</string>
     <string name="subtitle_client">Auto-discover (broadcast) · UDP 8887</string>
-    <string name="sub_server_waiting" translatable="false">Listening on %1$s:%2$d</string>
-    <string name="sub_client_waiting" translatable="false">HELLO broadcast 1 Hz → 255.255.255.255</string>
-    <string name="sub_server_connected" translatable="false">Uptime %1$s · 1 client</string>
-    <string name="sub_client_connected" translatable="false">Uptime %1$s · protocol v3</string>
+    <string name="sub_server_waiting">Listening on %1$s:%2$d</string>
+    <string name="sub_client_waiting">HELLO broadcast 1 Hz → 255.255.255.255</string>
+    <string name="sub_server_connected">1 client</string>
+    <string name="sub_client_connected">protocol v3</string>
     <string name="cd_settings">Settings</string>
     <string name="cd_monitor">Monitor</string>
     <string name="cd_back">Back</string>

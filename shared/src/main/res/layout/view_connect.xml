@@ -148,27 +148,7 @@
             android:layout_marginTop="8dp" />
     </LinearLayout>
 
-    <!-- Version + copyright footer -->
-    <TextView
-        android:id="@+id/versionText"
+    <Space
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center"
-        android:textColor="@color/ls_text_dim"
-        android:textSize="10.5sp" />
-
-    <TextView
-        android:id="@+id/copyrightText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:autoLink="web"
-        android:gravity="center"
-        android:linksClickable="true"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
-        android:text="@string/copyright_notice"
-        android:textColor="@color/ls_text_dim"
-        android:textColorLink="@color/ls_accent_400"
-        android:textSize="10.5sp" />
+        android:layout_height="14dp" />
 </LinearLayout>

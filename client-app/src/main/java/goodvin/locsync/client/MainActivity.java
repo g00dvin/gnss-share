@@ -103,9 +103,7 @@ public class MainActivity extends AppCompatActivity {
     private SparklineView sparkAgeView, sparkPktView, sparkSatView;
     private TextView sparkAgeVal, sparkPktVal, sparkSatVal;
 
-    // Settings
-    private RadioButton radioAuto, radioManual;
-    private EditText serverIpEdit;
+    private boolean liveMonitoring = false;   // real-time Monitor updates, off by default
 
     private final Handler uiHandler = new Handler();
     private final SimpleDateFormat logTime = new SimpleDateFormat("HH:mm:ss", Locale.US);
@@ -160,9 +158,11 @@ public class MainActivity extends AppCompatActivity {
                     lastProvider = intent.getStringExtra("provider");
                     lastLocationAge = intent.getFloatExtra("locationAge", 0);
                 }
-                sparkSatView.push(lastSatellites);
                 updateConnectReadouts();
-                updateMonitorLocation();
+                if (liveMonitoring) {
+                    sparkSatView.push(lastSatellites);
+                    updateMonitorLocation();
+                }
             }
         }
     };
@@ -191,10 +191,12 @@ public class MainActivity extends AppCompatActivity {
                 mAgeP95 = intent.getDoubleExtra("ageP95Ms", Double.NaN);
                 mCpu = intent.getDoubleExtra("cpuPct", Double.NaN);
                 mFixes = intent.getDoubleExtra("fixesPerSec", Double.NaN);
-                if (!Double.isNaN(mAgeMean)) sparkAgeView.push((float) mAgeMean);
-                if (!Double.isNaN(mPktRecv)) sparkPktView.push((float) mPktRecv);
-                updateMonitorMetrics();
                 updateConnectReadouts();
+                if (liveMonitoring) {
+                    if (!Double.isNaN(mAgeMean)) sparkAgeView.push((float) mAgeMean);
+                    if (!Double.isNaN(mPktRecv)) sparkPktView.push((float) mPktRecv);
+                    updateMonitorMetrics();
+                }
             }
         }
     };
@@ -218,6 +220,9 @@ public class MainActivity extends AppCompatActivity {
 
         appVersion = VersionGetter.getAppVersionName(this);
         AppLog.setDebug(Preferences.debugLoggingEnabled(this));
+        // Manual server-address UI was removed; the client always auto-discovers.
+        Preferences.setAutoDiscover(this, true);
+        liveMonitoring = Preferences.liveMonitoring(this);
 
         bindTopBar();
         bindConnect();
@@ -330,11 +335,6 @@ public class MainActivity extends AppCompatActivity {
         });
         findViewById(R.id.bannerDismiss).setOnClickListener(v ->
                 connectBanner.setVisibility(View.GONE));
-
-        TextView versionText = findViewById(R.id.versionText);
-        String buildLabel = getString(R.string.build_label);
-        String shown = buildLabel.isEmpty() ? appVersion : buildLabel;
-        versionText.setText(String.format(getString(R.string.version_label), shown));
     }
 
     private void bindMonitor() {
@@ -351,12 +351,19 @@ public class MainActivity extends AppCompatActivity {
         setText(R.id.kvAge, R.id.kvKey, getString(R.string.label_age));
         setText(R.id.kvFixes, R.id.kvKey, getString(R.string.label_fixes));
 
-        setText(R.id.lhPackets, R.id.metricLabel, "Packets/s");
-        setText(R.id.lhBytes, R.id.metricLabel, "Bytes/s");
-        setText(R.id.lhMaxGap, R.id.metricLabel, "Max gap ms");
-        setText(R.id.lhAgeMean, R.id.metricLabel, "Age mean ms");
-        setText(R.id.lhAgeP95, R.id.metricLabel, "Age p95 ms");
-        setText(R.id.lhCpu, R.id.metricLabel, "CPU %");
+        setText(R.id.lhPackets, R.id.metricLabel, getString(R.string.lh_packets));
+        setText(R.id.lhBytes, R.id.metricLabel, getString(R.string.lh_bytes));
+        setText(R.id.lhMaxGap, R.id.metricLabel, getString(R.string.lh_max_gap));
+        setText(R.id.lhAgeMean, R.id.metricLabel, getString(R.string.lh_age_mean));
+        setText(R.id.lhAgeP95, R.id.metricLabel, getString(R.string.lh_age_p95));
+        setText(R.id.lhCpu, R.id.metricLabel, getString(R.string.lh_cpu));
+
+        Switch liveSwitch = findViewById(R.id.monitorLiveSwitch);
+        liveSwitch.setChecked(liveMonitoring);
+        liveSwitch.setOnCheckedChangeListener((b, checked) -> {
+            liveMonitoring = checked;
+            Preferences.setLiveMonitoring(this, checked);
+        });
 
         View sparkAge = findViewById(R.id.sparkAge);
         View sparkPkt = findViewById(R.id.sparkPkt);
@@ -384,31 +391,6 @@ public class MainActivity extends AppCompatActivity {
         bindActionButton(R.id.rowPermissions, "",
                 getString(R.string.permission_fine_location) + " · " + getString(R.string.permission_coarse_location),
                 getString(R.string.request_permissions_short), this::requestPermissions);
-
-        // Server address
-        View rowAuto = findViewById(R.id.rowRadioAuto);
-        View rowManual = findViewById(R.id.rowRadioManual);
-        setText(rowAuto, R.id.row_label, getString(R.string.auto_discover_server));
-        setText(rowManual, R.id.row_label, getString(R.string.set_hostname_or_ip_address_manually));
-        radioAuto = rowAuto.findViewById(R.id.row_radio);
-        radioManual = rowManual.findViewById(R.id.row_radio);
-
-        View rowIp = findViewById(R.id.rowServerIp);
-        setText(rowIp, R.id.row_label, getString(R.string.editServerIp));
-        serverIpEdit = rowIp.findViewById(R.id.row_input);
-        serverIpEdit.setText(Preferences.serverAddress(this));
-        serverIpEdit.addTextChangedListener(new TextWatcher() {
-            @Override public void afterTextChanged(Editable s) {
-                Preferences.setServerAddress(MainActivity.this, s.toString());
-            }
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
-        });
-
-        boolean auto = Preferences.autoDiscover(this);
-        applyServerAddressMode(auto);
-        rowAuto.setOnClickListener(v -> applyServerAddressMode(true));
-        rowManual.setOnClickListener(v -> applyServerAddressMode(false));
 
         // Automation
         bindToggle(R.id.rowAutostart, getString(R.string.autostart_wifi_boot),
@@ -449,14 +431,6 @@ public class MainActivity extends AppCompatActivity {
                         Uri.parse("https://www.gnu.org/licenses/gpl-3.0.html"))));
     }
 
-    private void applyServerAddressMode(boolean auto) {
-        Preferences.setAutoDiscover(this, auto);
-        radioAuto.setChecked(auto);
-        radioManual.setChecked(!auto);
-        serverIpEdit.setEnabled(!auto);
-        serverIpEdit.setAlpha(auto ? 0.45f : 1f);
-    }
-
     private void registerReceivers() {
         registerReceiver(connectionReceiver, new IntentFilter("goodvin.locsync.CONNECTION_CHANGED"), RECEIVER_NOT_EXPORTED);
         registerReceiver(locationReceiver, new IntentFilter("goodvin.locsync.LOCATION_UPDATE"), RECEIVER_NOT_EXPORTED);
@@ -495,7 +469,7 @@ public class MainActivity extends AppCompatActivity {
             case CONNECTED -> {
                 statusLine.setText(R.string.status_client_connected);
                 statusLine.setTextColor(getColor(R.color.ls_accent_400));
-                statusSub.setText(String.format(getString(R.string.sub_client_connected), uptime()));
+                statusSub.setText(R.string.sub_client_connected);
             }
             case WAITING -> {
                 statusLine.setText(R.string.status_client_connecting);
@@ -576,8 +550,9 @@ public class MainActivity extends AppCompatActivity {
             setStat(statCard1, String.valueOf(lastSatellites), textColor);
             setStat(statCard2, fmt1(mPktRecv), textColor);
             setStat(statCard3, uptime(), textColor);
-            signalDetail.setText(String.format(getString(R.string.section_signal_fix),
-                    lastSatellites, lastSatellites, getString(R.string.fix_3d)));
+            // Client only knows the satellite count (no per-satellite C/N0 over the protocol),
+            // so the signal card shows the count and a uniform count meter.
+            signalDetail.setText(String.format(getString(R.string.signal_sats), lastSatellites));
             satBars.setData(lastSatellites, null);
         } else {
             String none = getString(R.string.value_none);
@@ -673,11 +648,10 @@ public class MainActivity extends AppCompatActivity {
         uiHandler.postDelayed(new Runnable() {
             @Override public void run() {
                 if (currentState() == LinkState.CONNECTED) {
-                    statusSub.setText(String.format(getString(R.string.sub_client_connected), uptime()));
                     setStat(statCard3, uptime(), getColor(R.color.ls_text));
                 }
                 blinkLogDot();
-                if (viewFlipper.getDisplayedChild() == VIEW_MONITOR) {
+                if (liveMonitoring && viewFlipper.getDisplayedChild() == VIEW_MONITOR) {
                     renderLog();
                 }
                 uiHandler.postDelayed(this, 1000);

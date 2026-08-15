@@ -53,6 +53,7 @@
     <string name="bluetooth_no_paired_devices">Bluetooth-устройства не найдены</string>
     <string name="bluetooth_add_device_title">Добавить устройство-триггер</string>
     <string name="bluetooth_all_devices_added">Все сопряжённые устройства уже добавлены</string>
+    <string name="bluetooth_not_available">Bluetooth недоступен или выключен</string>
 
     <!-- Fused Location Settings -->
     <string name="fused_location_settings_title">Fused Location Provider</string>

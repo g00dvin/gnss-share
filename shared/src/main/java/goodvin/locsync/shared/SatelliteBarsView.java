@@ -28,18 +28,20 @@ import android.view.View;
 
 
 /**
- * A fixed row of 14 signal bars. A bar at index {@code i} is lit when {@code i < satelliteCount}
- * (first 4 in {@code ls_accent}, the rest in {@code ls_accent_700}); unlit bars are a short stub in
- * {@code ls_bar_unlit}. Lit bar heights map each satellite's C/N0 (0–50&nbsp;dB-Hz → 5–36&nbsp;dp).
+ * A fixed row of 14 signal bars. A bar at index {@code i} is lit when {@code i < satelliteCount};
+ * unlit bars are a short stub in {@code ls_bar_unlit}. When per-satellite C/N0 is supplied, each lit
+ * bar's height and brightness map that satellite's signal (0–50&nbsp;dB-Hz → 5–36&nbsp;dp; a bright
+ * {@code ls_accent} bar = strong satellite, {@code ls_accent_700} = weak). Without C/N0 (the client,
+ * which only knows the count) lit bars are a uniform {@code ls_accent} count meter.
  */
 public class SatelliteBarsView extends View {
     private static final int BAR_COUNT = 14;
-    private static final int ACCENT_BARS = 4;
     private static final float GAP_DP = 3f;
     private static final float MIN_H_DP = 5f;
     private static final float MAX_H_DP = 36f;
     private static final float UNLIT_H_DP = 5f;
     private static final float CN0_MAX = 50f;
+    private static final float CN0_STRONG = 30f; // >= this reads as a strong (bright) satellite
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float density;
@@ -93,11 +95,16 @@ public class SatelliteBarsView extends View {
             if (!lit) {
                 barH = UNLIT_H_DP * density;
                 paint.setColor(cUnlit);
-            } else {
-                paint.setColor(i < ACCENT_BARS ? cAccent : cAccent700);
-                float dbHz = (cn0 != null && i < cn0.length) ? cn0[i] : (CN0_MAX * 0.6f);
+            } else if (cn0 != null && i < cn0.length) {
+                // Real per-satellite signal: height + brightness reflect C/N0.
+                float dbHz = cn0[i];
+                paint.setColor(dbHz >= CN0_STRONG ? cAccent : cAccent700);
                 float norm = Math.max(0f, Math.min(1f, dbHz / CN0_MAX));
                 barH = (MIN_H_DP + norm * (MAX_H_DP - MIN_H_DP)) * density;
+            } else {
+                // Count only (client): uniform lit bars at a mid height.
+                paint.setColor(cAccent);
+                barH = (MIN_H_DP + 0.6f * (MAX_H_DP - MIN_H_DP)) * density;
             }
             float left = i * (barW + gap);
             float top = h - barH;

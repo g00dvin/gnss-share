@@ -55,6 +55,7 @@
     <string name="bluetooth_no_paired_devices">No paired Bluetooth devices found</string>
     <string name="bluetooth_add_device_title">Add Trigger Device</string>
     <string name="bluetooth_all_devices_added">All paired devices are already added</string>
+    <string name="bluetooth_not_available">Bluetooth is not available or not enabled</string>
 
     <!-- Fused Location Settings -->
     <string name="fused_location_settings_title">Fused Location Provider</string>
